@@ -16,9 +16,19 @@ game/GENPEI/Message.gp
 
 `game/` 永遠**保持原樣**；所有修補輸出到 `build/GENPEI/`（`tools/dosbox/run.sh` 首次執行時自動 mirror 一份過去）。
 
-## Phase 1 已完成
+## 目前進度
 
-工具與流程雛形已就緒，**所有文字來源都已能抽取與回寫**；試譯經 DOSBox-X 實機驗證通過：主選單（Main.exe）與遊戲內劇情對話（Message.gp）都顯示繁中（截圖見 `docs/screenshots/`）。
+**所有文字都已完成初譯**：劇情（Message.gp）、EXE 介面（Main/Open/End.exe），以及片頭與片尾的文字圖。主選單、開局劇情、歌會、統治畫面、片頭與片尾旁白都在 DOSBox-X 上實際跑過，畫面顯示的是繁中（截圖存在 `docs/screenshots/`，已 gitignore）。下一步是實機巡檢與潤稿，詳見 `docs/development.md`。
+
+| 翻譯 | 筆數 |
+|---|---|
+| `translation/message.tsv`（Message.gp 劇情，含和歌 40 首） | 1,305 則 |
+| `translation/main.tsv`（Main.exe UI） | 494 條 |
+| `translation/open.tsv`、`translation/end.tsv`（Open/End.exe UI） | 21＋23 條 |
+| `translation/images.tsv`（片頭／片尾文字圖） | Opendat 12 張＋Enddat 16 張 |
+| `translation/glossary.tsv`（系統用語詞彙表） | 182 條 |
+
+## 工具
 
 | 元件 | 狀態 |
 |---|---|
@@ -34,8 +44,7 @@ game/GENPEI/Message.gp
 | Main.exe 解包（原檔是 RLE 壓縮） | ✓ `tools/unpack_exe.py` |
 | EXE 文字抽取 → TSV（去雜訊、合併重複） | ✓ `tools/exe_text.py` |
 | TSV → EXE 原地回寫 | ✓ `tools/patch.py`（多位置、JIS X 0208／printf／控制碼檢核，不變更檔案大小） |
-| 字型政策 | ✓ `docs/font-policy.md`（建議抄 kami-zh：只用 JIS X 0208） |
-| 翻譯 TSV 樣本 | ✓ `translation/main.tsv`、`translation/message.tsv`（各 8 筆試譯，已驗證可視） |
+| 字型政策 | ✓ `docs/font-policy.md`（照 kami-zh：只用 JIS X 0208） |
 
 ## 執行遊戲
 
@@ -59,32 +68,29 @@ tools/dosbox/run.sh 170
 
 `run.sh` 第一次執行時會把 `game/GENPEI/` 複製到 `build/GENPEI/`，之後都操作 `build/` 不碰原檔。
 
-## 翻譯流程（Phase 1 已能跑通）
+## 翻譯與建置流程
 
 ```bash
-# 1. 抽字成 TSV（Main.exe 會在記憶體中解包；輸出 main/open/end.tsv 與 main_data.tsv）
+# 1. 抽字成 TSV → extracted/text/（重跑會覆蓋；翻譯正本在 translation/）
+#    Main.exe 會在記憶體中解包；輸出 main/open/end.tsv 與 main_data.tsv
 python3 tools/exe_text.py game/GENPEI/Main.exe game/GENPEI/Open.exe game/GENPEI/End.exe
-
-# 2. 編輯 extracted/text/*.tsv，填 translation_zh 欄
-#    （或複製到 translation/*.tsv 編輯，避免被重跑的 extractor 蓋掉）
-
-# 3. Main.exe 先解包到 build/（TSV 的 offset 都是解包後的位置）
-python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe
-
-#    預檢：JIS X 0208 可編碼？長度不超過 max_bytes？參數與控制碼一致？
-python3 tools/patch.py --check translation/main.tsv \
-                              --target build/GENPEI/Main.exe
-
-# 4. 套用
-python3 tools/patch.py --apply translation/main.tsv \
-                              --target build/GENPEI/Main.exe
-
-# 5. 劇情訊息（Message.gp）：抽字、翻譯、回寫（重建 offset table 並重新 LS11 壓縮）
 python3 tools/message.py extract game/GENPEI/Message.gp extracted/text/message.tsv
-python3 tools/message.py apply game/GENPEI/Message.gp translation/message.tsv \
-                               build/GENPEI/Message.gp
 
-# 6. 在 DOSBox-X 驗證（搭 mousetsr 腳本，見上節）
+# 2. 在 translation/*.tsv 填 translation_zh 欄（片頭／片尾文字圖在 translation/images.tsv）
+
+# 3. 每次都從 game/ 整包重建 build/GENPEI（patch.py 會確認原文仍在原位，不接受改過的檔）
+cp game/GENPEI/* build/GENPEI/
+python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe   # TSV 的 offset 是解包後的位置
+
+# 4. 回寫。--check 只預檢：JIS X 0208 可編碼？長度不超過 max_bytes？參數與控制碼一致？
+python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe
+python3 tools/patch.py --apply translation/open.tsv --target build/GENPEI/Open.exe
+python3 tools/patch.py --apply translation/end.tsv  --target build/GENPEI/End.exe
+python3 tools/message.py apply game/GENPEI/Message.gp translation/message.tsv \
+                               build/GENPEI/Message.gp   # 重建 offset table 並重新 LS11 壓縮
+python3 tools/textimg.py build/GENPEI   # 重繪文字圖，讀 game/ 的 Opendat/Enddat.gp，寫到 build/
+
+# 5. 在 DOSBox-X 驗證（mousetsr 腳本見上節；存檔快照見 docs/development.md「存檔快照」）
 tools/dosbox/run.sh 170
 ```
 
@@ -110,21 +116,20 @@ tools/dosbox/run.sh 170
 |---|---|---|---|
 | `Message.gp` | 1,305 則 | ~26,300 | 對話、戰報、事件、遊戲說明 |
 | `Main.exe` UI | 496 條（595 處） | ~3,500 | 選單、指令、狀態欄、對話框 |
-| `Main.exe` 資料表 | 937 名稱＋624 讀音 | ~4,900 | 人名、地名、名物、官位（譯名政策待定） |
+| `Main.exe` 資料表 | 937 名稱＋624 讀音 | ~4,900 | 人名、地名、名物、官位（保留日文漢字，不翻） |
 | `Open.exe` | 37 條 | ~180 | 環境設定、磁片提示 |
 | `End.exe` | 41 條 | ~200 | 結尾程式 UI |
-| `Sndata.gp` | ~2,300 筆（選翻） | — | 武將姓名（71-byte 固定長度 record） |
+| `Sndata.gp` | ~2,300 筆 | — | 4 個劇本的初始資料（武將姓名保留日文漢字，不翻） |
 
 **UI＋劇情約 30,200 字**，另有資料表約 4,900 字，約《神々の大地》的兩倍。片頭／片尾的字樣是圖，不在文字檔內。
 
-## 下一步（Phase 2 建議順序）
+## 下一步
 
-1. ~~清理 Main.exe TSV~~（完成：發現 Main.exe 是壓縮的，改為解包後抽取）
-2. ~~定稿翻譯風格與詞彙表~~（完成：`docs/translation-style.md`、`translation/glossary.tsv`；人名、名物、官位、地名保留日文漢字，半形讀音保留）。**和歌（2-140～219）決議譯成中文詩句**，原則見 `docs/translation-style.md`「和歌」，下一步就是這項。
-3. **移植 kami-zh 的 `jis.py`**：全 TSV 缺字掃描＋替代建議（「嗎」「擊」等）。
-4. **整理 `install.py`**：一鍵從 `game/` 產生完整中文版 `build/`。
-5. **Sndata.gp 武將名工具**（選翻）、確認各類訊息視窗的行寬上限。
-6. 發佈：移植 `mkpatch.py`／Go patcher。
+1. **實機巡檢與潤稿**：待確認的參數語序、片段組合、片尾毛筆字等清單見 `docs/development.md`「下一步」。
+2. **移植 kami-zh 的 `jis.py`、`consistency.py`**：全 TSV 缺字掃描＋替代建議；變體混用、同原文多譯、與詞彙表不一致的檢查。
+3. **寫 `install.py`**：一鍵從 `game/` 產生完整中文版 `build/`。
+4. 其他含日文的圖（Logo、月名、指令圖等）視需要再譯。
+5. 發佈：移植 `mkpatch.py`／Go patcher。
 
 ## 參考
 
@@ -133,4 +138,4 @@ tools/dosbox/run.sh 170
 - 開發紀錄（進度、發現、經驗、決議）：`docs/development.md`
 - 翻譯風格與詞彙表：`docs/translation-style.md`、`translation/glossary.tsv`
 - 字型政策：`docs/font-policy.md`
-- Phase 1 驗證截圖：`docs/screenshots/phase1-main-menu-chinese.png`
+- 實機驗證截圖：`docs/screenshots/`（遊戲畫面有版權，gitignored，只留在本機）
