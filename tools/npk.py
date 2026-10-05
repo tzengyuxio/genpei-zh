@@ -130,6 +130,64 @@ def unpack(src: bytes, line: int, count: int | None = None) -> tuple[bytes, int]
     return bytes(dest), pos
 
 
+def pack(pixels: bytes, line: int) -> bytes:
+    """Compress width*height 4-bit indices into an NPK016 payload.
+
+    Greedy: at each 4-pixel unit take the longest back-reference among the
+    eight offsets the format allows (1-4 units back, 1-4 rows up), else a
+    literal. Inverse of unpack(); pixel count must be a multiple of 4.
+    """
+    n = len(pixels)
+    assert n % 4 == 0
+    offsets = [(k, k * 4, 0) for k in range(1, 5)] + [(k, k * line, 0x80) for k in range(1, 5)]
+    out = bytearray()
+    flag_pos = -1
+    bit = 8
+    p = 0
+    while p < n:
+        if bit == 8:
+            flag_pos = len(out)
+            out.append(0)
+            bit = 0
+        best, code = 0, 0
+        for k, off, hi in offsets:
+            # the game's decoder works row by row: no zeros before the start,
+            # and horizontal references stay inside the current row
+            if off > p or (not hi and off > p % line):
+                continue
+            units = 0
+            # nor may a run cross the row end
+            limit = min(32, (line - p % line) // 4)
+            while units < limit:
+                q = p + units * 4
+                if any(pixels[q + j] != pixels[q + j - off] for j in range(4)):
+                    break
+                units += 1
+            if units > best:
+                best, code = units, hi | ((k - 1) << 5)
+        if best:
+            out[flag_pos] |= 1 << bit
+            out.append(code | (best - 1))
+            p += best * 4
+        else:
+            b1 = b2 = 0
+            for j in range(4):
+                v = pixels[p + j]
+                b1 |= ((v >> 3) & 1) << (7 - j) | ((v >> 2) & 1) << (3 - j)
+                b2 |= ((v >> 1) & 1) << (7 - j) | (v & 1) << (3 - j)
+            out += bytes((b1, b2))
+            p += 4
+        bit += 1
+    return bytes(out)
+
+
+def build_chunk(width: int, height: int, pixels: bytes, palette: bytes, planes: int = 4,
+                canvas: tuple[int, int] = (640, 400)) -> bytes:
+    """A complete NPK016 chunk (48-byte header + payload)."""
+    return (MAGIC + struct.pack("<5H", planes, canvas[0], canvas[1], width, height)
+            + palette + pack(pixels, width))
+
+
 def decode(chunk: Chunk) -> bytes:
     """Decode a chunk to width*height indices; fills `used`/`trailer`."""
     px, used = unpack(chunk.payload, chunk.width, chunk.width * chunk.height)

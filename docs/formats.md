@@ -76,6 +76,22 @@
 #     從 (dest 尾端 - run_offset) 複製 run_size * 4 個 pixel
 ```
 
+### 2.3.1 重新壓縮（`npk.pack()`）的限制
+
+遊戲（Open.exe／End.exe）的解碼器是**逐行**的。Python 版 `unpack()` 可以解的串流，遊戲不一定能解。原版壓縮器從不違反以下三條（實測 Opendat、Enddat、Mainevt、Logo 全部 chunk），自己壓的時候也必須遵守：
+
+1. 回溯參照的 run 不跨行尾。
+2. 水平參照（bit 7 = 0）的位移不超過「目前位置在該行內的偏移」，也就是不退到行首之前。
+3. 不參照圖的起點之前（Python 版把那裡當 0，遊戲會讀到記憶體裡的垃圾）。
+
+違反任何一條，畫面就會出現條紋。遵守這些限制的 greedy 壓縮仍然比原版略小。
+
+### 2.3.2 Open.exe／End.exe 怎麼找 chunk
+
+程式裡有 u32 offset 表和 size 表，例如 Open.exe 0x12160 是 chunk 14–17 的 offset，0x12170 起是它們的大小（不含 8-byte 座標），0x121F8 是 chunk 44–51 的 offset。帶擺放座標的 chunk，程式另外從「下一個 chunk 的 offset − 8」讀那 8 bytes。
+
+所以換圖時 chunk 的位置與 slot 大小都不能變：新 header＋payload，補 0，最後放回原本的 8-byte 座標（`tools/textimg.py`）。解碼器只解 寬×高 個 pixel，補的 0 不會被讀到。
+
 ### 2.4 哪些檔案是 NPK016 容器
 
 全部用 magic scan 確認過（11 個）：
@@ -426,7 +442,9 @@ A:DISK-3.GP      B:DISK-4.GP     ...
 
 全部的 NPK016 圖形檔、planar 圖形檔、音樂檔。
 
-**含日文字樣的圖**（若要做圖像本地化）：`Logo.gp`（KOEI PRESENTS、歴史シミュレーションゲーム）、`Opendat.gp`（祇園精舎…、源平合戦標題、說明文字欄）、`Enddat.gp`（片尾文字欄）、`Mainmap.gp`（地圖地名）、`Mainstl.gp`（睦月…師走）、`Maincmd.gp`（統治、行軍等標籤）、`Maincmd2.gp`（平家物語書法）。dump 見 §10。這些檔案的內容是**畫面美術與音效**，不含文字；真的要本地化圖像（如把 CG 裡的日文看板畫新圖），再另外處理。
+**已重繪成中文的圖**（`tools/textimg.py`、`translation/images.tsv`）：Opendat 14–17（祇園精舍…書法）、44–51（片頭旁白）；Enddat 68–77（平家物語書法）、78–83（片尾旁白）。
+
+**仍含日文字樣的圖**：`Logo.gp`（KOEI PRESENTS、歴史シミュレーションゲーム）、`Opendat.gp` 的「源平合戦」標題（保留）、`Mainmap.gp`（地圖地名）、`Mainstl.gp`（睦月…師走）、`Maincmd.gp`（統治、行軍等標籤）、`Maincmd2.gp`（平家物語書法）。dump 見 §10。這些檔案的內容是**畫面美術與音效**，不含文字；真的要本地化圖像（如把 CG 裡的日文看板畫新圖），再另外處理。
 
 ---
 
