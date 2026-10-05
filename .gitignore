@@ -16,3 +16,6 @@ build/
 extracted/gfx/
 *.avi
 *.mp4
+
+# Game screenshots (copyrighted game graphics), kept locally
+docs/screenshots/
