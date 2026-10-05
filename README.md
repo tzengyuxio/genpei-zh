@@ -24,6 +24,7 @@ game/GENPEI/Message.gp
 |---|---|
 | DOSBox-X 配置與啟動腳本 | ✓ `tools/dosbox/{run.sh, genpei.conf}` |
 | 滑鼠自動化（跳過片頭動畫） | ✓ `tools/mousetsr.py`（移植自 kami-zh） |
+| 片頭／片尾文字圖重繪 | ✓ `tools/textimg.py`（`translation/images.tsv` → NPK016，原位寫回） |
 | 存檔快照庫（跳過前置流程） | ✓ `tools/saves.py`（Savedata.gp 欄位 ↔ `build/saves/*.slot`） |
 | 檔案格式分析 | ✓ `docs/formats.md` |
 | Message.gp（LS11）解壓／重新壓縮 | ✓ `tools/ls11.py` |

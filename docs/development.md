@@ -11,10 +11,14 @@
 | 2. 翻譯風格與詞彙表 | 完成（`translation-style.md`、`translation/glossary.tsv`） |
 | 3. 和歌翻譯 | 完成（40 首 80 則，七言；歌會實機驗證） |
 | 4. Message.gp 劇情 | 完成初譯（1,305 則全數；實機抽查歌會、開局） |
-| **下一步** | Main.exe UI → Open/End.exe |
-| 之後 | 移植 `jis.py`、`consistency.py`、`install.py`，正式翻譯，發佈修補程式 |
+| 5. EXE UI | 完成初譯（Main.exe 494 條、Open.exe 21、End.exe 23；實機抽查主選單、劇本、環境設定、統治畫面） |
+| 6. 片頭／片尾文字圖 | 完成（Opendat 12 張、Enddat 16 張重繪；片頭與片尾旁白實機驗證） |
+| **下一步** | 實機巡檢與潤稿、`jis.py`／`consistency.py`／`install.py`、發佈修補程式 |
 
-已翻：Message.gp 全部 1,305 則（`translation/message.tsv`），Main.exe 9 筆試譯（`translation/main.tsv`）。
+文字都已初譯：
+- `translation/message.tsv`：Message.gp 1,305 則
+- `translation/main.tsv`、`translation/open.tsv`、`translation/end.tsv`：EXE 的 UI
+- `translation/images.tsv`：片頭／片尾的文字圖
 
 ## 工具
 
@@ -37,6 +41,7 @@
 | `tools/dosbox/run.sh`、`genpei.conf` | DOSBox-X 啟動（帶秒數時錄影＋看門狗） |
 | `tools/dosbox/newgame.mouse` | 滑鼠腳本：片頭 → 新遊戲 → 1180 年 → 源頼朝 → 開局對話 |
 | `tools/dosbox/kakai.mouse` | 滑鼠腳本：讀存檔欄 1 → 外交 → 歌會 → 吟歌（約 100 秒） |
+| `tools/textimg.py` | 片頭／片尾文字圖：依 `translation/images.tsv` 重繪 → NPK016 壓縮 → 原位寫回 Opendat/Enddat.gp |
 | `tools/saves.py` | Savedata.gp 存檔欄 ↔ `build/saves/*.slot` 快照庫（list/library/export/import/reset） |
 
 ## 建置與驗證（目前是手動步驟）
@@ -51,6 +56,9 @@ cp game/GENPEI/* build/GENPEI/
 python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe
 python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe
 python3 tools/message.py apply game/GENPEI/Message.gp translation/message.tsv build/GENPEI/Message.gp
+python3 tools/patch.py --apply translation/open.tsv --target build/GENPEI/Open.exe
+python3 tools/patch.py --apply translation/end.tsv --target build/GENPEI/End.exe
+python3 tools/textimg.py build/GENPEI            # 讀 game/ 的 Opendat/Enddat.gp，寫到 build/
 
 # 實機驗證：自動點到開局對話，錄 170 秒
 python3 tools/mousetsr.py build/FAKEMS.COM "$(grep -v '^#' tools/dosbox/newgame.mouse | tr -d '\n')"
@@ -121,6 +129,13 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 13. **圖形全部解開**（`tools/dump_gfx.py`）：NPK016 header 其實是 48 bytes（含寬高與一張遊戲不用的制式色表）；色盤是 48-byte 的 B、R、G 三 nibble 格式，Mainpal 四組＝四季；未壓縮圖是 byte-interleaved planar，**byte k＝bit k**（由 Grpdrv.exe 的 blitter 與 DAC 對照表確認）；Kaodata/Kisetsu 用另一種 3bpp RLE。Sndata.gp 是 4 個劇本（1180/1183/1184/1185）的初始資料，不是單純武將表。
 14. **Savedata.gp 是 10 格 × 43,403 bytes，沒有檔頭**。每格開頭是 u16 年、u8 月，棟梁名在 +13（Shift-JIS）；空欄以 `00 b4 90 00` 開頭。
 15. **歌會會自動吟出整首歌**（兩行對話框，上句一行、下句一行），講評訊息顯示上下句是分開挑選再拼起來的（見 `translation-style.md`「和歌」）。
+16. **片頭旁白、平家物語書法、片尾旁白都是 NPK016 圖**（Opendat 14–17、44–51；Enddat 68–83）。Open.exe／End.exe 內有這些 chunk 的 u32 offset 表與 size 表（例：Open.exe 0x12160、0x121F8），帶擺放座標的 chunk 另從「下一個 chunk − 8」讀那 8 bytes。所以換圖只能**原位覆寫、不改位移**：新 chunk＋補 0＋原座標。
+17. **遊戲的 NPK016 解碼器是逐行的**：Python 版 `unpack()` 能解的串流遊戲不一定能解。原版壓縮器有三條限制，自己的壓縮器都要遵守，否則畫面全是條紋：
+    - 回溯參照不跨行尾；
+    - 水平參照不退到行首之前；
+    - 不參照圖的起點之前。
+    （`tools/npk.py` 的 `pack()`）
+18. **End.exe 從 `A:ENDDAT.GP` 讀檔**（硬碟化只改了 Main.exe），而且要先載入 FMDRV.COM、GRPDRV.EXE。單獨測片尾的做法：`build/GENPEI/ENDTEST.BAT` 先 `mount a <build/GENPEI>`，再執行這三支程式，用 `GENPEI_START=ENDTEST.BAT tools/dosbox/run.sh 120` 啟動。播完第一段旁白後畫面會變淺灰並停住（原版也一樣），之後的毛筆字要從真正的結局才看得到。
 
 ## 踩過的坑與經驗
 
@@ -157,12 +172,17 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 | 2026-10-06 | 系統用語照 `translation/glossary.tsv`（165 條） |
 | 2026-10-06 | **和歌譯成中文詩句**（細節見 `translation-style.md`「和歌」） |
 | 2026-10-06 | 和歌定案為上下句各一句七言 |
+| 2026-10-06 | 片頭／片尾的文字圖也譯：旁白用思源宋體，書法用楷體，照原圖的色號與格局重繪；標題「源平合戦」保留不改 |
 | 2026-10-06 | 實機驗證改用存檔快照（`tools/saves.py`）。DOSBox-X 的 save state 只能用熱鍵讀取，沒有命令列參數可以在啟動時載入，所以不採用 |
 
 ## 下一步
 
-1. Main.exe UI 正式翻譯；Message.gp 待實機確認的參數語序（0-115、0-526～529、3-032 的 `%W1`）。
+1. 實機巡檢：
+   - Message.gp 待確認的參數語序：0-115、0-526～529、3-032 的 `%W1`。
+   - Main.exe 待確認的片段組合：40「結束」、266～268 的存讀檔句型、304／305 的攻打通知。
+   - 未譯的兩筆：246「蛇」、450「受け」。
+   - 片尾的毛筆字（Enddat 68～77）。
 2. 移植 kami-zh 的 `jis.py`（全 TSV 缺字掃描＋替代建議）與 `consistency.py`（變體混用、同原文多譯、與 glossary 不一致）。
 3. 寫 `install.py`：把上面「建置與驗證」的手動步驟變成一鍵。
-4. 正式翻譯：Main.exe UI → Open/End.exe。
+4. 其他含日文的圖（Logo「歴史シミュレーションゲーム」、Mainstl 月名、Maincmd「統治」「行軍」、Maincmd2 平家物語書法）視需要再譯。
 5. 發佈：移植 `mkpatch.py`／Go patcher。

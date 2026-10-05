@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-《源平合戰》(KOEI, 1994, IBM-PC DOS/V) 的繁體中文化專案。Phase 1 已完成：所有文字來源（Main/Open/End.exe UI、Message.gp 劇情）都能抽取與回寫，試譯在 DOSBox-X 實機驗證通過。和歌已譯完，正式翻譯進行中。
+《源平合戰》(KOEI, 1994, IBM-PC DOS/V) 的繁體中文化專案。Phase 1 已完成：所有文字來源（Main/Open/End.exe UI、Message.gp 劇情）都能抽取與回寫，試譯在 DOSBox-X 實機驗證通過。所有文字（劇情、UI、片頭／片尾文字圖）已完成初譯，接下來是實機巡檢與潤稿。
 
 ## 不可動的檔案
 
@@ -11,7 +11,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 接手先讀
 
-`docs/development.md`：目前進度、完整建置步驟、重要發現、踩過的坑與決議。和歌已譯完（七言，見 `docs/translation-style.md`「和歌」），**下一項是 Message.gp 劇情的正式翻譯**。實機驗證用存檔快照（`tools/saves.py`，見 development.md「存檔快照」）跳過前置流程。
+`docs/development.md`：目前進度、完整建置步驟、重要發現、踩過的坑與決議。所有文字已初譯，**下一項是實機巡檢**（待確認清單在 development.md「下一步」）。實機驗證用存檔快照（`tools/saves.py`，見 development.md「存檔快照」）跳過前置流程。
 
 ## 工作流程摘要（詳見 README）
 
@@ -24,6 +24,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 劇情   : python3 tools/message.py extract|apply ...（Message.gp，LS11 重新壓縮）
 驗證   : python3 tools/mousetsr.py build/FAKEMS.COM "$(grep -v '^#' tools/dosbox/newgame.mouse | tr -d '\n')"
          tools/dosbox/run.sh 170
+文字圖 : python3 tools/textimg.py build/GENPEI（translation/images.tsv → Opendat/Enddat.gp）
 存檔   : python3 tools/saves.py reset|library|import NAME SLOT|export SLOT NAME（快照在 build/saves/）
 ```
 
@@ -64,3 +65,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Python 3.14 系統裝的；本專案目前**沒有 `.venv/`**。工具都是純 Python 標準庫，不需要額外套件。
 - `dosbox-x` 要可以在 `PATH` 上找到（Homebrew `/usr/local/bin/dosbox-x`）。
 - `ffmpeg` 需要（截影片的 frame）。
+- `tools/textimg.py` 需要 ImageMagick（`magick`）與思源宋體、楷體字型；字型路徑寫在檔案頂端的 `FONT`，換機器要改。
