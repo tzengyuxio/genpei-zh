@@ -1,0 +1,166 @@
+category	ja	zh	note
+role	棟梁	棟梁	武家之長；中文亦通，保留
+role	代官	代官	拠点的管理者；保留
+role	御家人	御家人	鎌倉體制用語；保留
+role	大将	大將
+role	相談役	參謀	「相談役」中文不成詞
+role	落武者	落武者	身分欄 3 字；劇情中可寫「落難武士」
+role	在野	在野
+role	捕虜	俘虜
+role	武将	武將
+role	敵将	敵將
+role	総大将	總大將
+role	配下	麾下	劇情中亦可「部下」
+faction	源氏	源氏
+faction	平氏	平氏
+faction	藤原氏	藤原氏
+faction	武家	武家
+faction	豪族	豪族
+faction	朝廷	朝廷
+faction	政権	政權
+faction	勢力	勢力
+faction	軍団	軍團
+faction	拠点	據點
+faction	支配拠点	支配據點
+faction	他勢力	他勢力
+resource	財貨	財貨
+resource	兵糧	兵糧
+resource	雑兵	雜兵
+resource	動員兵	動員兵
+resource	動員力	動員力
+resource	兵質	兵質
+resource	雑兵質	雜兵質
+resource	士気	士氣
+resource	機動力	機動力
+resource	物資	物資
+resource	荷駄	輜重
+resource	商業値	商業値	「值」不在字庫，用日系「値」
+resource	農業値	農業値
+resource	人口	人口
+resource	治安	治安
+resource	宝物	寶物
+resource	官位	官位
+attribute	知才	智力	2 字欄位
+attribute	武力	武力
+attribute	忠節	忠誠
+attribute	勲功	功勳
+attribute	勇名	威名
+attribute	優雅	風雅	原文說明亦用「風雅の心」
+attribute	体力	體力
+attribute	弓術	弓術
+attribute	菩提	菩提	信佛之心
+attribute	加護	加護	神佛庇佑
+attribute	無常	無常
+attribute	和歌	和歌
+attribute	音楽	音樂
+attribute	奇略	奇略
+attribute	操船	操船
+attribute	年齢	年齡
+attribute	身分	身分
+attribute	名前	名字
+phase	統治	統治	季節的內政階段
+phase	行軍	行軍	季節的軍事階段
+phase	統治戦略	統治戰略
+phase	行軍戦略	行軍戰略
+phase	朝廷戦略	朝廷戰略
+command	召集	召集
+command	内政	内政	「內」不在字庫，照用「内」
+command	軍事	軍事
+command	人事	人事
+command	外交	外交
+command	計略	計略
+command	開墾	開墾
+command	米売	賣米
+command	米買	買米
+command	商業奨励	獎勵商業
+command	治安活動	治安活動
+command	金山開発	開發金山
+command	巡検	巡察
+command	移動	移動
+command	輸送	輸送
+command	徴兵	徴兵
+command	徴収	徴收
+command	雑兵訓練	訓練雜兵
+command	動員兵訓練	訓練動員兵
+command	編成	編成
+command	任命	任命
+command	登用	登用	「錄用」的「錄」缺字
+command	解雇	解雇
+command	委任	委任
+command	委任解除	解除委任
+command	参拝	參拜
+command	懐柔	懷柔
+command	奏上	奏上
+command	脅迫	脅迫
+command	歌会	歌會
+command	要請	請求
+command	密偵	密探
+command	扇動	煽動
+command	焼き討ち	火燒
+command	調略	策反
+command	兵奪	奪兵
+command	論功行賞	論功行賞
+command	宝物授与	授予寶物
+command	宝物没収	沒收寶物
+command	懐柔外交	懷柔外交
+command	脅迫外交	脅迫外交
+command	服従要請	要求服從
+command	攻撃	進攻	「擊」缺字；不寫日系「撃」
+command	物見	偵察
+command	特殊	特殊
+command	調達	籌措	「いくら調達しますか」→籌措多少
+command	帰還	歸還
+command	狩猟	狩獵
+command	管弦	管弦
+command	兵施	犒軍	「兵に物資を施し士気を高めます」
+command	火計	火攻
+command	虚報	虚報
+command	散兵	散兵	使敵兵逃散
+command	誘兵	收買	「いくらでさそいますか」
+command	落ち武者狩り	搜捕敗將
+command	流鏑馬	流鏑馬	保留
+command	白拍子	白拍子	保留
+command	かむろ	禿童	平清盛派出的童子密探（禿髮）
+command	吉次	吉次	金賣吉次，人名照用
+battle	接触	接觸
+battle	接近	接近
+battle	迂回	迂迴
+battle	回避	迴避
+battle	待機	待機
+battle	離脱	脱離	「脫」不在字庫，用日系「脱」
+battle	肉弾	肉搏
+battle	弓矢	弓矢
+battle	防御	防禦
+battle	守備	守備
+battle	一騎打ち	一騎討	單挑
+battle	合戦	合戰
+system	セーブ	保存	2 字欄位
+system	ロード	讀取	不用「載入」
+system	データ	資料
+system	ディスク	磁片
+system	ドライブ	磁片機
+system	セーブディスク	記録磁片	「檔」「錄」不在字庫，用日系「録」
+system	起動ディスク	啓動磁片
+system	マウス	滑鼠
+system	終了	結束
+system	決定	決定
+system	中止	取消
+system	確認	確認
+system	よろしいですか？	如此可否？	沿用 kami-zh
+system	選んでください	請選擇
+system	〜しますか?	是否〜?
+system	見る見るモード	觀戰模式	電腦代操作的觀看模式
+system	空きメモリが足りません	記憶體不足
+address	%s様（家臣稱主君）	%s大人
+address	殿（單獨，家臣呼主君）	主公
+address	%s殿	%s大人	對敵將嘲諷時可用「閣下」
+address	貴殿	閣下
+address	貴様	汝	罵人時可「爾」「匹夫」
+address	そなた／お主	汝
+address	兄上	兄長
+address	叔父君	叔父
+self	わし	吾	年長武將可用「老夫」
+self	私	我／在下	對上位者用「在下」
+self	我ら	我等
+self	余	余	貴人自稱，保留
+self	者ども／皆の者	衆將士	依場合「諸君」

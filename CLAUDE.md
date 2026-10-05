@@ -2,14 +2,64 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-《源平合戦》(KOEI, 1994, IBM-PC DOS/V) 的繁體中文化專案，剛建立，尚無工具與譯文。
+《源平合戰》(KOEI, 1994, IBM-PC DOS/V) 的繁體中文化專案。Phase 1 已完成：所有文字來源（Main/Open/End.exe UI、Message.gp 劇情）都能抽取與回寫，試譯在 DOSBox-X 實機驗證通過。尚未開始正式翻譯。
 
-## 遊戲檔不在 repo
+## 不可動的檔案
 
-遊戲原檔放 `game/GENPEI/`（gitignored，版權因素**絕不 commit**）。`game/` 永遠保持原樣，修補輸出到 `build/`。
+- `game/`（gitignored）— 遊戲原檔，版權因素**絕不 commit**，任何工具都**不可寫入**。所有輸出目的地只能是 `build/`、`extracted/`、`translation/`、`tools/`、`docs/`。
+- `.DS_Store` 已在 `.gitignore` 中排除。
 
-## 參考專案
+## 接手先讀
 
-姊妹專案 `~/works/kami-zh`（《神々の大地》，同為 KOEI DOS/V）已有完整流程：Shift-JIS 文字抽取／回寫、NPK 解壓、DOSBox-X DOS/V 執行與自動化、發佈用修補程式。開始分析前先參考它的 `docs/formats.md` 與 `docs/development.md`，可沿用的工具直接移植。
+`docs/development.md`：目前進度、完整建置步驟、重要發現、踩過的坑與決議。**下一項工作是和歌翻譯**（Message.gp 2-140～219，譯成中文詩句，原則在 `docs/translation-style.md`「和歌」；動筆前先實機確認歌會畫面怎麼用上下句）。
 
-本作的檔案結構（`.gp` 資料檔）與 kami-zh 不同，格式需重新分析。`Main.exe` 與 `Main.ori` 不同、另附第三方日文字型載入器（`DOSJP.COM`、`FONT.DAT`），細節見 README。
+## 工作流程摘要（詳見 README）
+
+```
+抽字   : python3 tools/exe_text.py game/GENPEI/{Main,Open,End}.exe → extracted/text/*.tsv
+翻譯   : 編輯 translation/main.tsv，填 translation_zh（JIS X 0208 only）
+解包   : python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe
+預檢   : python3 tools/patch.py --check translation/main.tsv --target build/GENPEI/Main.exe
+套用   : python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe
+劇情   : python3 tools/message.py extract|apply ...（Message.gp，LS11 重新壓縮）
+驗證   : python3 tools/mousetsr.py build/FAKEMS.COM "$(grep -v '^#' tools/dosbox/newgame.mouse | tr -d '\n')"
+         tools/dosbox/run.sh 170
+```
+
+## 參考姊妹專案
+
+`~/works/kami-zh/` 已完整做過一輪（《神々の大地》）。本專案移植了：
+
+- `kami-zh/tools/mousetsr.py` → `tools/mousetsr.py`（原封不動）
+- `kami-zh/tools/sjis_scan.py` → `tools/sjis_scan.py`（原封不動）
+- NPK016 LZ-RLE 演算法 → `tools/npk.py`（stride 欄位語意有調整）
+- DOSBox-X 配置骨架 → `tools/dosbox/genpei.conf`（dosv=jp 關鍵）
+
+本專案與 kami-zh 的關鍵差異：
+
+- 文字容器不同：kami-zh 用 `EVENT.DAT`（XOR 0x77 的 Shift-JIS 明文），本作用 `Message.gp`（KOEI LS11 壓縮，整檔表為 big-endian；訊息裡的半形假名由引擎畫成平假名，`ESC K`/`ESC H` 切片／平假名）。
+- 本作 NPK016 header 的 stride 欄位語意改為「scanline 像素寬」（kami-zh 是 chunk byte-size）。
+- 本作 chunks 以 magic `"NPK016"` 掃描直接串接，沒有 kami-zh 那層 u32 offset table。
+- 本作在 DOS/V 模式下不需 `DOSJP.COM`，相當於 kami-zh 的 setup 簡化版。
+- **Main.exe 是 RLE 壓縮的 EXE**：直接掃檔案會漏字、欄位黏連、選單置中空白消失。抽字與回寫一律以 `tools/unpack_exe.py` 解包後的檔案為準（TSV offset 都是解包後的位置，build/ 裡放解包版）。
+
+## 翻譯規範
+
+翻譯前先讀 `docs/translation-style.md`（語域、稱謂、缺字替代、格式限制），系統用語照 `translation/glossary.tsv`。
+
+- **人名、名物、官位、地名保留日文漢字原樣**（`頼朝` 不改 `賴朝`），劇情裡寫死的名字也一樣，與 `%s` 帶入的資料表一致；`main_data.tsv` 的半形讀音保留。`main_data.tsv` 整份不翻。
+- 一般詞彙繁體優先，JIS X 0208 缺字才退回日系新字體（錄→録、值→値、脫→脱、擊→撃），再不行就換詞（嗎→否／乎、吧→罷）。
+- **cp932 能編碼不等於有字模**：NEC 0x87 區與 0xED 以上的擴充區畫不出來。不確定的字先實測，別憑印象（「戲」其實在字庫內）。
+- 字庫政策（不換字型、不擴字庫）的評估見 `docs/font-policy.md`。
+
+## DOSBox-X 踩坑
+
+- 遊戲需要 EMS，但 XMS 同時存在時選完棟梁就卡死（CPU 核心在 `rep movs` 例外迴圈，連 `-time-limit` 都不觸發）。`genpei.conf` 固定 `xms = false`、`ems = emsboard`，不要改回預設。
+- 結束卡住的 DOSBox-X 用 `kill -9`，一般 SIGTERM 會停在離開確認框。只殺 `genpei-conf` 的行程，同機可能有別的專案的 DOSBox-X。
+- 錄影 `.avi` 搬到 repo 根目錄（已 gitignore），截圖放 `docs/screenshots/`。
+
+## 執行環境
+
+- Python 3.14 系統裝的；本專案目前**沒有 `.venv/`**。工具都是純 Python 標準庫，不需要額外套件。
+- `dosbox-x` 要可以在 `PATH` 上找到（Homebrew `/usr/local/bin/dosbox-x`）。
+- `ffmpeg` 需要（截影片的 frame）。

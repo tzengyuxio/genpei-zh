@@ -1,0 +1,10 @@
+id	offsets	max_bytes	kind	original_ja	translation_zh
+31	0x56B9E	28	ui	 何をなさいますか?          	 要做什麼?                  
+32	0x56BBB	28	ui	    新しくゲームを始める    	         開始新遊戲         
+33	0x56BD8	28	ui	     データをロードする     	          讀取進度          
+44	0x56D5B	6	ui	セーブ	保存
+45	0x56D62	6	ui	ロード	讀取
+46	0x56D69	6	ui	終  了	結  束
+210	0x57CCF	6	ui	中  止	取  消
+126	0x57265,0x5C07A	20	ui	武将を選んでください	請選擇武將
+475	0x5C13A	8	ui	命令終了	命令結束
