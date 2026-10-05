@@ -35,10 +35,22 @@ import npk  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 TSV = ROOT / 'translation/images.tsv'
+
+
+def find_font(*patterns: str) -> Path:
+    """First file matching any glob pattern (absolute, ~ expanded)."""
+    for pat in patterns:
+        hits = sorted(Path('/').glob(str(Path(pat).expanduser()).lstrip('/')))
+        if hits:
+            return hits[-1]
+    sys.exit(f'font not found: {patterns}')
+
+
 FONT = {
-    'narr': Path.home() / 'Library/Fonts/SourceHanSerif-VF.otf.ttc',
-    'brush': Path('/System/Library/AssetsV2/com_apple_MobileAsset_Font7/'
-                  '54a2ad3dac6cac875ad675d7d273dc425010a877.asset/AssetData/Kaiti.ttc'),
+    # Source Han Serif, installed by the user
+    'narr': find_font('~/Library/Fonts/SourceHanSerif*.ttc', '/Library/Fonts/SourceHanSerif*.ttc'),
+    # macOS Kaiti, a downloadable system font whose asset path differs per machine
+    'brush': find_font('/System/Library/AssetsV2/com_apple_MobileAsset_Font*/*.asset/AssetData/Kaiti.ttc'),
 }
 # horizontal punctuation -> vertical presentation forms
 VERT = str.maketrans({'，': '︐', '、': '︑', '。': '︒', '…': '︙', '：': '︓',
