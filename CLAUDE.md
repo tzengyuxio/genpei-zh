@@ -35,7 +35,8 @@ translation/*.tsv（手動維護的正本，翻譯只改這裡）──┘
 # 每次都從 game/ 整包重建：patch.py 會確認原文仍在原位，不接受已改過的檔
 cp game/GENPEI/* build/GENPEI/
 python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe
-python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe   # --check 只預檢
+python3 tools/patch.py --apply translation/main.tsv translation/main_data.tsv --target build/GENPEI/Main.exe   # --check 只預檢
+python3 tools/patch.py --apply translation/sndata.tsv --target build/GENPEI/Sndata.gp
 python3 tools/patch.py --apply translation/open.tsv --target build/GENPEI/Open.exe
 python3 tools/patch.py --apply translation/end.tsv  --target build/GENPEI/End.exe
 python3 tools/message.py apply game/GENPEI/Message.gp translation/message.tsv build/GENPEI/Message.gp
@@ -75,7 +76,7 @@ python3 tools/saves.py library | reset | import NAME SLOT | export SLOT NAME
 
 翻譯前先讀 `docs/translation-style.md`（語域、稱謂、缺字替代、格式限制），系統用語照 `translation/glossary.tsv`。
 
-- **人名、名物、官位、地名保留日文漢字原樣**（`頼朝` 不改 `賴朝`），劇情裡寫死的名字也一樣，與 `%s` 帶入的資料表一致；`main_data.tsv` 的半形讀音保留。`main_data.tsv` 整份不翻。
+- **人名、名物、官位、地名保留日文漢字原樣**（`頼朝` 不改 `賴朝`），劇情裡寫死的名字也一樣，與 `%s` 帶入的資料表一致；`main_data.tsv` 的半形讀音保留。`main_data.tsv` 整份不翻，唯一例外是假名人名「かむろ」→「禿童」（`translation/main_data.tsv`、`translation/sndata.tsv`）。
 - 一般詞彙繁體優先，JIS X 0208 缺字才退回日系新字體（錄→録、值→値、脫→脱、擊→撃），再不行就換詞（嗎→否／乎、吧→罷）。
 - **cp932 能編碼不等於有字模**：NEC 0x87 區與 0xED 以上的擴充區畫不出來。不確定的字先實測，別憑印象（「戲」其實在字庫內）。
 - 字庫政策（不換字型、不擴字庫）的評估見 `docs/font-policy.md`。

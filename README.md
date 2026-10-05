@@ -83,7 +83,8 @@ cp game/GENPEI/* build/GENPEI/
 python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe   # TSV 的 offset 是解包後的位置
 
 # 4. 回寫。--check 只預檢：JIS X 0208 可編碼？長度不超過 max_bytes？參數與控制碼一致？
-python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe
+python3 tools/patch.py --apply translation/main.tsv translation/main_data.tsv --target build/GENPEI/Main.exe
+python3 tools/patch.py --apply translation/sndata.tsv --target build/GENPEI/Sndata.gp
 python3 tools/patch.py --apply translation/open.tsv --target build/GENPEI/Open.exe
 python3 tools/patch.py --apply translation/end.tsv  --target build/GENPEI/End.exe
 python3 tools/message.py apply game/GENPEI/Message.gp translation/message.tsv \
@@ -119,7 +120,7 @@ tools/dosbox/run.sh 170
 | `Main.exe` 資料表 | 937 名稱＋624 讀音 | ~4,900 | 人名、地名、名物、官位（保留日文漢字，不翻） |
 | `Open.exe` | 37 條 | ~180 | 環境設定、磁片提示 |
 | `End.exe` | 41 條 | ~200 | 結尾程式 UI |
-| `Sndata.gp` | ~2,300 筆 | — | 4 個劇本的初始資料（武將姓名保留日文漢字，不翻） |
+| `Sndata.gp` | ~2,300 筆 | — | 4 個劇本的初始資料（武將姓名保留日文漢字，不翻；唯一的假名人名「かむろ」改「禿童」） |
 
 **UI＋劇情約 30,200 字**，另有資料表約 4,900 字，約《神々の大地》的兩倍。片頭／片尾的字樣是圖，不在文字檔內。
 

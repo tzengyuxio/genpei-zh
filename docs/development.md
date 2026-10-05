@@ -54,7 +54,8 @@ python3 tools/message.py extract game/GENPEI/Message.gp extracted/text/message.t
 # 產生 build/GENPEI（每次都從 game/ 重來，patch.py 不接受已改過的檔）
 cp game/GENPEI/* build/GENPEI/
 python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe
-python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe
+python3 tools/patch.py --apply translation/main.tsv translation/main_data.tsv --target build/GENPEI/Main.exe
+python3 tools/patch.py --apply translation/sndata.tsv --target build/GENPEI/Sndata.gp
 python3 tools/message.py apply game/GENPEI/Message.gp translation/message.tsv build/GENPEI/Message.gp
 python3 tools/patch.py --apply translation/open.tsv --target build/GENPEI/Open.exe
 python3 tools/patch.py --apply translation/end.tsv --target build/GENPEI/End.exe
@@ -170,6 +171,7 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 | 2026-10-05 | 字庫政策照 kami-zh：不改編碼、不換字型，只用 JIS X 0208（`font-policy.md`） |
 | 2026-10-06 | 人名、名物、官位保留日文漢字；地名同樣保留（為與資料表一致）；`main_data.tsv` 的半形讀音保留，整份不翻 |
 | 2026-10-06 | 系統用語照 `translation/glossary.tsv`（182 條） |
+| 2026-10-06 | 專有名詞中唯一的假名人名「かむろ」改作「禿童」，與 glossary、劇情、UI 一致（Main.exe 表＋Sndata.gp 四劇本） |
 | 2026-10-06 | **和歌譯成中文詩句**（細節見 `translation-style.md`「和歌」） |
 | 2026-10-06 | 和歌定案為上下句各一句七言 |
 | 2026-10-06 | 片頭／片尾的文字圖也譯：旁白用思源宋體，書法用楷體，照原圖的色號與格局重繪；標題「源平合戦」保留不改 |
