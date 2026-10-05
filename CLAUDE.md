@@ -13,20 +13,46 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `docs/development.md`：目前進度、完整建置步驟、重要發現、踩過的坑與決議。所有文字已初譯，**下一項是實機巡檢**（待確認清單在 development.md「下一步」）。實機驗證用存檔快照（`tools/saves.py`，見 development.md「存檔快照」）跳過前置流程。
 
-## 工作流程摘要（詳見 README）
+## 資料流
 
 ```
-抽字   : python3 tools/exe_text.py game/GENPEI/{Main,Open,End}.exe → extracted/text/*.tsv
-翻譯   : 編輯 translation/main.tsv，填 translation_zh（JIS X 0208 only）
-解包   : python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe
-預檢   : python3 tools/patch.py --check translation/main.tsv --target build/GENPEI/Main.exe
-套用   : python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe
-劇情   : python3 tools/message.py extract|apply ...（Message.gp，LS11 重新壓縮）
-驗證   : python3 tools/mousetsr.py build/FAKEMS.COM "$(grep -v '^#' tools/dosbox/newgame.mouse | tr -d '\n')"
-         tools/dosbox/run.sh 170
-文字圖 : python3 tools/textimg.py build/GENPEI（translation/images.tsv → Opendat/Enddat.gp）
-存檔   : python3 tools/saves.py reset|library|import NAME SLOT|export SLOT NAME（快照在 build/saves/）
+game/GENPEI/（唯讀原檔）
+  ├─ exe_text.py / message.py extract → extracted/text/*.tsv（可重生，重跑會蓋掉）
+  └─ 建置 → build/GENPEI/（gitignored，可隨時整包重建）
+translation/*.tsv（手動維護的正本，翻譯只改這裡）──┘
 ```
+
+- `translation/` 與 `extracted/text/` 同欄位；翻譯只填 `translation_zh`，不要改 `offsets`／`max_bytes`／`original_ja`。
+- 兩種回寫方式不同：EXE 是**原地覆寫**（`patch.py`，長度不得超過 `max_bytes`、不改檔案大小）；Message.gp 是**整檔重建**（`message.py apply`，重建 offset table 再 LS11 壓縮，長度只受訊息視窗行寬限制）；Opendat/Enddat.gp 文字圖是**原位換 chunk**（`textimg.py`，EXE 內寫死 chunk 位移，新 chunk 不能比原本大）。
+- 文字記法 `patch.py`／`message.py` 共用：`{C6}` = ESC C6 色碼、`{K}`/`{H}` = ESC K/H、`\n` 換行；printf 參數與 ESC 碼必須與原文一致，工具會擋。
+- TSV 一律用 `csv` 模組 `quoting=csv.QUOTE_NONE, quotechar=None` 讀寫（字串含 `"`）；macOS `sed` 不認 `\t`，改 TSV 用 Python。
+
+## 建置與驗證
+
+沒有單元測試、linter；驗證靠工具的預檢與實機。完整步驟見 `docs/development.md`「建置與驗證」，重點：
+
+```bash
+# 每次都從 game/ 整包重建：patch.py 會確認原文仍在原位，不接受已改過的檔
+cp game/GENPEI/* build/GENPEI/
+python3 tools/unpack_exe.py game/GENPEI/Main.exe build/GENPEI/Main.exe
+python3 tools/patch.py --apply translation/main.tsv --target build/GENPEI/Main.exe   # --check 只預檢
+python3 tools/patch.py --apply translation/open.tsv --target build/GENPEI/Open.exe
+python3 tools/patch.py --apply translation/end.tsv  --target build/GENPEI/End.exe
+python3 tools/message.py apply game/GENPEI/Message.gp translation/message.tsv build/GENPEI/Message.gp
+python3 tools/textimg.py build/GENPEI        # 讀 game/ 的 Opendat/Enddat.gp，寫到 build/
+
+# 實機：腳本化滑鼠 + 錄影 N 秒（→ build/captures/open_000.avi）
+python3 tools/mousetsr.py build/FAKEMS.COM "$(grep -v '^#' tools/dosbox/newgame.mouse | tr -d '\n')"
+tools/dosbox/run.sh 170
+ffmpeg -fflags +ignidx -i build/captures/open_000.avi -vf fps=1 build/captures/g_%03d.png
+
+# 存檔快照（讀檔約 40 秒進統治畫面，新開局要 150 秒）
+python3 tools/saves.py library | reset | import NAME SLOT | export SLOT NAME
+```
+
+- 改 `tools/ls11.py` 後跑 `python3 tools/ls11.py selftest game/GENPEI/Message.gp`（round-trip）。
+- 改 `tools/npk.py` 的 `pack()` 要守住遊戲逐行解碼器的三條限制（development.md 重要發現 17），Python 版 `unpack()` 解得開不代表遊戲解得開，一定要實機看。
+- mousetsr 腳本的 `(t,x,y,b)` 是「到 t 秒為止」的狀態；遊戲每次快慢差幾秒，點擊間隔至少 5 秒。常用座標在 development.md。
 
 ## 參考姊妹專案
 
