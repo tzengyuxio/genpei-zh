@@ -1,0 +1,18 @@
+# Game binaries / assets — never commit (copyright)
+game/
+*.zip
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Patched game build output, extracted graphics, recordings
+build/
+extracted/gfx/
+*.avi
+*.mp4
