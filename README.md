@@ -24,10 +24,12 @@ game/GENPEI/Message.gp
 |---|---|
 | DOSBox-X 配置與啟動腳本 | ✓ `tools/dosbox/{run.sh, genpei.conf}` |
 | 滑鼠自動化（跳過片頭動畫） | ✓ `tools/mousetsr.py`（移植自 kami-zh） |
+| 存檔快照庫（跳過前置流程） | ✓ `tools/saves.py`（Savedata.gp 欄位 ↔ `build/saves/*.slot`） |
 | 檔案格式分析 | ✓ `docs/formats.md` |
 | Message.gp（LS11）解壓／重新壓縮 | ✓ `tools/ls11.py` |
 | Message.gp ↔ TSV | ✓ `tools/message.py`（1,305 則，printf 參數與 JIS 檢核） |
 | NPK016 圖形解壓 | ✓ `tools/npk.py` |
+| 全部圖檔／資料表 dump（PNG、TSV → `build/dump/`） | ✓ `tools/dump_gfx.py`、`tools/dump_data.py` |
 | Main.exe 解包（原檔是 RLE 壓縮） | ✓ `tools/unpack_exe.py` |
 | EXE 文字抽取 → TSV（去雜訊、合併重複） | ✓ `tools/exe_text.py` |
 | TSV → EXE 原地回寫 | ✓ `tools/patch.py`（多位置、JIS X 0208／printf／控制碼檢核，不變更檔案大小） |
