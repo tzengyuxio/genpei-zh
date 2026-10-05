@@ -164,3 +164,20 @@ self	私	我／在下	對上位者用「在下」
 self	我ら	我等
 self	余	余	貴人自稱，保留
 self	者ども／皆の者	衆將士	依場合「諸君」
+story	制圧	攻占	「佔」缺字
+story	本拠	本據	
+story	寝返る	倒戈	
+story	自害	自盡	
+story	首をはねる	斬首	
+story	生け捕る	生擒	
+story	討ち死に	戰死	
+story	突撃	衝鋒	避開「撃」
+story	名乗り	報上名號	われこそは%W1の住人、%B1なり→吾乃%W1人氏%B1是也
+story	入京／京へ上る	進京	
+story	病気のため死亡	因病去世	
+story	老衰のため死亡	壽終正寢	
+story	歓待	款待	
+story	処遇	處置	
+address	あなた（妻→夫）	夫君	妻自稱「妾身」
+address	棟梁殿	棟梁大人	
+story	上の句／下の句	上句／下句	

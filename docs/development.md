@@ -10,10 +10,11 @@
 | 1. 清理 Main.exe TSV | 完成（發現 Main.exe 是壓縮的，改為解包後抽取） |
 | 2. 翻譯風格與詞彙表 | 完成（`translation-style.md`、`translation/glossary.tsv`） |
 | 3. 和歌翻譯 | 完成（40 首 80 則，七言；歌會實機驗證） |
-| **下一步：正式翻譯** | Message.gp 劇情 → Main.exe UI → Open/End.exe |
+| 4. Message.gp 劇情 | 完成初譯（1,305 則全數；實機抽查歌會、開局） |
+| **下一步** | Main.exe UI → Open/End.exe |
 | 之後 | 移植 `jis.py`、`consistency.py`、`install.py`，正式翻譯，發佈修補程式 |
 
-已翻：Main.exe 9 筆試譯（`translation/main.tsv`），Message.gp 8 筆試譯＋和歌 80 則（`translation/message.tsv`）。
+已翻：Message.gp 全部 1,305 則（`translation/message.tsv`），Main.exe 9 筆試譯（`translation/main.tsv`）。
 
 ## 工具
 
@@ -99,7 +100,7 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 - 右側：命令 (575,180)、機能 (575,250)。
 - 選單第 1～4 項大約在 y = 215、240、263、287。
 
-同一份存檔每次執行的結果相同（亂數存在存檔裡）。
+同一份存檔重跑，結果**不一定**相同（吟哪首歌、成敗都會變），要重現特定畫面就另存快照。
 
 ## 重要發現
 
@@ -118,7 +119,7 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 11. **小按鈕是圖**：讀檔畫面的「中止」、選棟梁的「決定」不在任何文字檔。
 12. **「戲」在字庫內**；「嗎、吧、您、你、她、哪、擊、錄、值、脫、檔」不在。
 13. **圖形全部解開**（`tools/dump_gfx.py`）：NPK016 header 其實是 48 bytes（含寬高與一張遊戲不用的制式色表）；色盤是 48-byte 的 B、R、G 三 nibble 格式，Mainpal 四組＝四季；未壓縮圖是 byte-interleaved planar，**byte k＝bit k**（由 Grpdrv.exe 的 blitter 與 DAC 對照表確認）；Kaodata/Kisetsu 用另一種 3bpp RLE。Sndata.gp 是 4 個劇本（1180/1183/1184/1185）的初始資料，不是單純武將表。
-14. **Savedata.gp 是 10 格 × 43,403 bytes，沒有檔頭**。每格開頭是 u16 年、u8 月，棟梁名在 +13（Shift-JIS）；空欄以 `00 b4 90 00` 開頭。同一份存檔每次重玩的結果相同。
+14. **Savedata.gp 是 10 格 × 43,403 bytes，沒有檔頭**。每格開頭是 u16 年、u8 月，棟梁名在 +13（Shift-JIS）；空欄以 `00 b4 90 00` 開頭。
 15. **歌會會自動吟出整首歌**（兩行對話框，上句一行、下句一行），講評訊息顯示上下句是分開挑選再拼起來的（見 `translation-style.md`「和歌」）。
 
 ## 踩過的坑與經驗
@@ -160,7 +161,7 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 
 ## 下一步
 
-1. 正式翻譯 Message.gp 劇情（block 0～4，逐 block 進行）。
+1. Main.exe UI 正式翻譯；Message.gp 待實機確認的參數語序（0-115、0-526～529、3-032 的 `%W1`）。
 2. 移植 kami-zh 的 `jis.py`（全 TSV 缺字掃描＋替代建議）與 `consistency.py`（變體混用、同原文多譯、與 glossary 不一致）。
 3. 寫 `install.py`：把上面「建置與驗證」的手動步驟變成一鍵。
 4. 正式翻譯：Main.exe UI → Open/End.exe。
