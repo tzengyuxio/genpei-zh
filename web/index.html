@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>源平合戦 繁體中文版</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/js-dos@8.5.1/dist/js-dos.css">
+<script src="https://cdn.jsdelivr.net/npm/js-dos@8.5.1/dist/js-dos.js"></script>
+<style>
+  :root {
+    --bg: #14161c;
+    --panel: #1e2230;
+    --text: #e8e4d8;
+    --muted: #a39f94;
+    --accent: #d9a25f;
+    --error: #e07a6f;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); }
+  body { font-family: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif; line-height: 1.7; }
+  main { max-width: 40rem; margin: 0 auto; padding: 3rem 1rem; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; }
+  .sub { color: var(--muted); margin: 0 0 2rem; }
+  section { background: var(--panel); border-radius: 8px; padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; }
+  h2 { font-size: 1.1rem; margin: 0 0 .75rem; }
+  p, li { color: var(--text); }
+  .note { color: var(--muted); font-size: .9rem; }
+  .buttons { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0 .5rem; }
+  button, label.button {
+    font: inherit; cursor: pointer; border: 1px solid var(--accent); border-radius: 6px;
+    background: transparent; color: var(--accent); padding: .45rem 1.1rem;
+  }
+  button.primary { background: var(--accent); color: #1a1408; font-weight: bold; }
+  button:disabled { opacity: .6; cursor: default; }
+  label.button input { display: none; }
+  #status, #ready-status { min-height: 1.5em; margin: .5rem 0 0; }
+  .error, #ready-status { color: var(--error); }
+  a { color: var(--accent); }
+
+  #game { display: none; }
+  body.playing main { display: none; }
+  body.playing #game { display: flex; flex-direction: column; height: 100vh; }
+  #bar { display: flex; gap: .5rem; align-items: center; padding: .35rem .75rem; background: var(--panel); font-size: .9rem; }
+  #bar .hint { color: var(--muted); margin-right: auto; }
+  #bar button { padding: .15rem .8rem; }
+  #dos { flex: 1; min-height: 0; }
+  #game { position: relative; }
+  #slots {
+    position: absolute; top: 2.6rem; right: .75rem; z-index: 10; width: min(26rem, calc(100vw - 1.5rem));
+    max-height: calc(100vh - 4rem); overflow: auto;
+    background: var(--panel); border: 1px solid var(--accent); border-radius: 8px; padding: .75rem 1rem;
+  }
+  #slots .note { margin: 0 0 .5rem; }
+  #slot-list { list-style: none; margin: 0; padding: 0; }
+  #slot-list li { display: flex; align-items: center; gap: .6rem; padding: .35rem 0; border-top: 1px solid #ffffff14; }
+  #slot-list .thumb { width: 80px; height: 60px; flex: none; background: #000 center / cover; image-rendering: pixelated; border-radius: 3px; }
+  #slot-list span { flex: 1; font-size: .9rem; }
+  #slot-list button { padding: .1rem .7rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>源平合戦</h1>
+  <p class="sub">繁體中文版，在瀏覽器裡遊玩（DOSBox-X）</p>
+
+  <section id="setup" hidden>
+    <h2>選擇日文 DOS/V 原版遊戲檔</h2>
+    <p>本頁不含遊戲本體，需要你自備光榮 1994 年的 DOS/V 版。選擇含有 <code>Main.exe</code> 的
+      <code>GENPEI</code> 資料夾，或它的 zip 壓縮檔。</p>
+    <div class="buttons">
+      <label class="button">選擇資料夾<input type="file" id="pick-dir" webkitdirectory></label>
+      <label class="button">選擇 zip 檔<input type="file" id="pick-zip" accept=".zip"></label>
+    </div>
+    <p id="status"></p>
+    <p class="note">檔案不會上傳到任何地方。讀檔、驗證與中文化都在你的瀏覽器裡完成，
+      原版檔會存在這個瀏覽器的本機儲存空間，下次就不必再選。</p>
+  </section>
+
+  <section id="ready" hidden>
+    <h2>準備就緒</h2>
+    <div class="buttons">
+      <button class="primary" id="start">開始遊戲</button>
+      <label><input type="checkbox" id="skip"> 跳過片頭</label>
+    </div>
+    <p id="ready-status"></p>
+    <p class="note">遊戲內存檔會自動保存在這個瀏覽器裡。另外可以用快照隨時保存整個遊戲狀態：
+      F6 快速保存、F7 快速載入，另有 8 格可以挑選的快照欄位（工具列的「快照」）。</p>
+    <p class="note"><button id="forget">刪除瀏覽器裡的原版檔</button></p>
+  </section>
+
+  <section>
+    <h2>操作</h2>
+    <ul>
+      <li>全程以滑鼠操作，點擊遊戲畫面即可。</li>
+    </ul>
+    <p class="note">中文化專案：<a href="https://github.com/tzengyuxio/genpei-zh">github.com/tzengyuxio/genpei-zh</a>。
+      模擬器使用 <a href="https://js-dos.com/">js-dos</a> 與 <a href="https://dosbox-x.com/">DOSBox-X</a>（GPL）。</p>
+  </section>
+</main>
+
+<div id="game">
+  <div id="bar">
+    <span id="note" class="hint">遊戲內存檔會自動保存</span>
+    <button id="qsave" title="F6">快速保存</button>
+    <button id="qload" title="F7">快速載入</button>
+    <button id="snap">快照</button>
+    <button id="quit">結束</button>
+  </div>
+  <div id="slots" hidden>
+    <p class="note">快照保存整個遊戲當下的狀態，任何時候都能用；讀取快照不會影響遊戲內的存檔。</p>
+    <ul id="slot-list"></ul>
+  </div>
+  <div id="dos"></div>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -115,6 +115,24 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 
 同一份存檔重跑，結果**不一定**相同（吟哪首歌、成敗都會變），要重現特定畫面就另存快照。
 
+## 網頁版（`web/`，尚未部署）
+
+玩家在瀏覽器裡選自己的 DOS/V 原版（資料夾或 zip），頁面內驗證 SHA-256、套用差異檔，再用 js-dos 8.5.1（DOSBox-X 的 WebAssembly 版）執行。從 kami-zh 的 `web/` 移植，架構、js-dos 的坑與驗證方法見 kami-zh `docs/web-port.md`。
+
+```bash
+tools/web.sh          # 在暫存目錄從 game/ 乾淨建置 → mkpatch → web/dist/（不碰 build/）
+tools/web.sh serve    # 同上，再開 http://localhost:8000/
+```
+
+- `web/dist/` 只有 `index.html`、`app.js`、`genpei-zh.kzp`（約 134 KB），不含遊戲資料，gitignored。
+- `tools/mkpatch.py`（KZP1 格式，自 kami-zh 原樣移植）只記差異：COPY 指回玩家自己的原檔，INSERT 才是譯文 bytes。
+- **Main.exe 以解包後的映像為基準**：直接拿壓縮的原檔對建置結果做差異，會把重建的 MZ 標頭、relocation 表與原版程式碼碎片放進差異檔（33.5 KB 新增 bytes，解包後只剩 2.7 KB 譯文）。所以 `web.sh` 先把原版一側的 Main.exe 解包再做差異，`app.js` 的 `unpackExe()`（`tools/unpack_exe.py` 的移植）在瀏覽器裡同樣先解包再驗證與修補。
+- 遊戲參數集中在 `app.js` 開頭的 `GAME` 物件（資料夾、啟動器、存檔檔、跳過片頭、DOSBox 設定），之後要抽成多遊戲共用網頁時只換這個物件。檔名一律轉大寫（含差異檔裡的 `Main.exe`）。
+- DOSBox 設定同 `genpei.conf`（`xms = false`、`ems = emsboard` 一定要帶），只拿掉 `getsysfont`。不需要軟碟映像。
+- **跳過片頭**：`Genpei.com` 檔案位移 `0x5A3` 的 `BA 53 05`（exec OPEN.EXE 那段開頭）改 `EB 1A`，直接跳到 exec MAIN.EXE，約 10 秒進主選單。只在網頁版勾選時套用，不改差異檔。
+- 遊戲內存檔 `GENPEI/SAVEDATA.GP` 變動後自動存進瀏覽器（IndexedDB `genpei-zh`、js-dos `fsChanges` 鍵 `genpei-zh.changes`）；F6／F7 與 8 格快照是 DOSBox-X 狀態快照（`genpeistate.sav`，約 820 KB）。
+- 驗證（2026-10-07，Playwright）：原版 zip → 驗證 → 完整片頭（書法、jiskan 旁白圖正常）→ 讀檔 → 遊戲內保存到欄 3 → 自動保存 → 重新整理後欄 3 仍在；F6／F7、快照欄存讀正常；跳過片頭正常。主選單與桌面版 DOSBox-X 逐像素相同（只差滑鼠游標），字型一致。原版套差異（含 JS 解包）與乾淨建置 53 個檔逐 byte 相同。**聲音**自動化瀏覽器沒有音效裝置，要用一般瀏覽器確認。
+
 ## 重要發現
 
 依發現順序：
