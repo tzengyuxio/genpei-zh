@@ -542,7 +542,7 @@ $('q').addEventListener('input', buildList);
 buildTypes();
 buildBgs();
 const h = parseInt(location.hash.slice(1), 16);
-const start = h >= 0x4000 && h <= 0xFFFF ? h : (GENERALS.find(g => g.name === '増尾兼房') || GENERALS[0]).code;
+const start = h >= 0x4000 && h <= 0xFFFF ? h : GENERALS[Math.floor(Math.random() * GENERALS.length)].code;
 S = fromCode(start);
 buildParts();
 buildList();
