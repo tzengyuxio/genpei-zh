@@ -8,7 +8,7 @@ box-filtered to game pixels, light core plus a 1 px dark rim, over the
 game screen. The page exports the per-glyph scale/offset as JSON to save
 as translation/calligraphy/<target>/layout.json.
 
-    python3 tools/calligraphy_editor.py [--target opendat|maincmd2] [--bg FRAME.png]
+    python3 tools/calligraphy_editor.py [--target opendat|maincmd2|enddat] [--bg FRAME.png]
         -> build/calligraphy-editor[-maincmd2].html
 
 opendat   the opening 平家物語 (Opendat.gp chunks 14-17); shows each chunk's
@@ -18,6 +18,10 @@ opendat   the opening 平家物語 (Opendat.gp chunks 14-17); shows each chunk's
 maincmd2  the defeat screen (Maincmd2.gp, four uncompressed 48x358
           columns); the background is the folding-screen painting from the
           game file in the colours of the last frame.
+enddat    the ending verses (Enddat 68-71, core and rim) and scroll (72-77,
+          ink shades on paper, style `ink`); shows compressed sizes. Where
+          End.exe puts these chunks is not decoded, so they are laid out
+          side by side on a black screen.
 
 The page embeds game graphics, so it lives in build/ and is not committed.
 """
@@ -25,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import csv
 import json
 import struct
 import subprocess
@@ -40,6 +45,9 @@ ROOT = Path(__file__).resolve().parent.parent
 # Maincmd2.gp columns, right to left: game-area (x, y) of each 48x358 column (formats.md §10.6)
 MAINCMD2_COLUMNS = [(416, 24), (336, 38), (256, 28), (176, 34)]
 # colours of the painting on the last frame of the defeat screen (Losepal fade end)
+# Enddat chunk -> (x, y) on the editing screen (stand-ins; End.exe places them)
+ENDDAT_PLACES = {68: (560, 16), 69: (496, 16), 70: (432, 16), 71: (368, 16),
+                 72: (280, 40), 73: (240, 40), 74: (200, 40), 75: (160, 40), 76: (120, 40), 77: (80, 40)}
 MAINCMD2_PAL = ['000000', '102092', '8261a2', '301041', '003030', '3041b2', '925182', 'a2d3e3',
                 '715192', '612061', '714161', '512030', '713061', '714192', '000030', '612041']
 
@@ -62,11 +70,38 @@ def collect(target: str) -> dict:
             'key': f'{chunk}-{pos}', 'char': char, 'source': ' '.join(source), 'gw': gw, 'gh': gh,
             'url': png_url([str(f), '-colorspace', 'gray', '-negate']),
         })
+    # glyphs not picked yet: an empty square in their place, so the column is laid out in full
+    with textimg.TSV.open(encoding='utf-8') as f:
+        rows = [r for r in csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONE, quotechar=None)
+                if r['file'].lower() == target + '.gp' and r['style'] in ('glyphs', 'ink')]
+    for r in rows:
+        have = {g['key'] for g in lines.get(int(r['chunk']), [])}
+        for k, ch in enumerate(r['text'], 1):
+            if f"{r['chunk']}-{k}" not in have:
+                lines.setdefault(int(r['chunk']), []).append(
+                    {'key': f"{r['chunk']}-{k}", 'char': ch, 'source': '（未選）', 'gw': 1, 'gh': 1, 'url': None})
+        lines[int(r['chunk'])].sort(key=lambda g: int(g['key'].split('-')[1]))
     if target == 'maincmd2':
         _, w, h = textimg.RAW_COLUMNS['Maincmd2.gp']
         return {'unit': '欄', 'core': 'a2d3e3', 'rim': '000030',
                 'chunks': [{'chunk': i, 'x': x, 'y': y, 'w': w, 'h': h, 'room': None, 'glyphs': lines[i]}
                            for i, (x, y) in enumerate(MAINCMD2_COLUMNS, 1) if i in lines]}
+    if target == 'enddat':
+        chunks = npk.scan_archive((ROOT / 'game/GENPEI/Enddat.gp').read_bytes())
+        with textimg.TSV.open(encoding='utf-8') as f:
+            styles = {int(r['chunk']): r['style'] for r in csv.DictReader(f, delimiter='\t', quoting=csv.QUOTE_NONE,
+                                                                            quotechar=None) if r['file'] == 'Enddat.gp'}
+        pal = gfx.load_palettes(ROOT / 'game/GENPEI/Enddat.gp', 0, chunks[0].offset // 48)[10]
+        out = []
+        for i, glyphs in sorted(lines.items()):
+            c = chunks[i]
+            npk.decode(c)
+            x, y = ENDDAT_PLACES[i]
+            out.append({'chunk': i, 'x': x, 'y': y, 'w': c.width, 'h': c.height, 'style': styles[i],
+                        'room': c.size - len(c.trailer), 'glyphs': glyphs})
+        return {'unit': '張', 'core': 'a2d3e3', 'rim': '000030', 'paper': 'e8d8b8',
+                'ink': [bytes(pal[k]).hex() for k in textimg.INK_RAMP], 'levels': textimg.INK_LEVELS,
+                'chunks': out}
     chunks = npk.scan_archive((ROOT / 'game/GENPEI/Opendat.gp').read_bytes())
     out = []
     for i, glyphs in sorted(lines.items()):
@@ -86,11 +121,12 @@ PAGE = r'''<!doctype html>
 <style>
 :root { --bg: #f4f4f2; --fg: #222; --muted: #777; --line: #ccc; --bad: #c0392b; --ok: #2e7d32; --sel: #fff6c8; }
 body { margin: 0; font: 14px/1.4 -apple-system, "PingFang TC", sans-serif; background: var(--bg); color: var(--fg); }
-main { display: flex; gap: 12px; padding: 12px; align-items: flex-start; }
-#stage { position: relative; flex: none; }
+/* preview and controls scroll separately */
+main { display: flex; gap: 12px; padding: 12px; align-items: flex-start; height: 100vh; box-sizing: border-box; }
+#stage { position: relative; flex: none; max-height: 100%; overflow: auto; }
 canvas { image-rendering: pixelated; display: block; }
 #overlay { position: absolute; left: 0; top: 0; cursor: crosshair; }
-aside { flex: 1; min-width: 300px; max-width: 760px; }
+aside { flex: 1; min-width: 300px; max-width: 760px; max-height: 100%; overflow-y: auto; }
 #tables { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 0 12px; }
 table { border-collapse: collapse; width: 100%; margin-bottom: 6px; font-size: 13px; }
 th, td { border-bottom: 1px solid var(--line); padding: 1px 3px; text-align: left; white-space: nowrap; }
@@ -113,7 +149,7 @@ h3 { margin: 12px 0 4px; }
     <label>100% 基準 <select id="base"><option value="column">各欄寬度</option><option value="36">統一 36 px</option><option value="40">統一 40 px</option></select></label>
     <label><input type="checkbox" id="boxes" checked> 顯示框線</label>
   </div>
-  <div class="bar"><label>分配高度 <input type="number" id="pct" value="80" min="10" max="100" step="5"> %</label>
+  <div class="bar"><label>預設分配高度 <input type="number" id="pct" value="80" min="10" max="100" step="5"> %</label>
     <button id="even-all">全部欄：平均字距</button><button id="span-all">全部欄：依分配高度</button></div>
   <p class="help">字距＝與上一個字的距離（第一個字是與欄頂的距離）；改字距會帶動下面的字。點選字後拖曳移動；拖曳時按住 Shift 只水平或垂直移動；方向鍵移動 1 px（Shift 5 px）；+／− 調整大小 5%（Shift 1%）。拖曳、方向鍵與改大小都只動這個字，上下的字不動。Esc 取消選取。單位是遊戲像素。</p>
   <div id="tables"></div>
@@ -128,6 +164,7 @@ const INIT = __INIT__;
 const STORE = 'genpei-calligraphy-__TARGET__', INIT_TEXT = JSON.stringify(INIT);
 const rgb = h => [0, 2, 4].map(i => parseInt(h.slice(i, i + 2), 16));
 const SS = 4, CORE = 112, C6 = rgb(D.rim), C7 = rgb(D.core);
+const INK = (D.ink || []).map(rgb), PAPER = D.paper ? rgb(D.paper) : null;
 const screen = document.getElementById('screen'), overlay = document.getElementById('overlay');
 const sctx = screen.getContext('2d', { willReadFrequently: true }), octx = overlay.getContext('2d');
 // load() below needs these before P exists
@@ -160,7 +197,7 @@ function defaultGlyphs(c, base) {
   return gl;
 }
 function defaults() {
-  const p = { base: 'column', glyphs: {} };
+  const p = { base: 'column', glyphs: {}, spans: {} };   // spans: per-column share in %, editor only
   for (const c of D.chunks) Object.assign(p.glyphs, defaultGlyphs(c, p.base));
   return p;
 }
@@ -194,6 +231,7 @@ function load() {
   if (src) {
     if (isLegacy(src)) src = fromLegacy(src);
     p.base = src.base ?? p.base;
+    Object.assign(p.spans, src.spans || {});
     for (const k in src.glyphs || {}) if (p.glyphs[k]) Object.assign(p.glyphs[k], src.glyphs[k]);
   }
   return p;
@@ -254,7 +292,7 @@ function spanGaps(c, pct) {
 }
 
 const images = {};
-function img(g) { return images[g.key] ||= Object.assign(new Image(), { src: g.url, onload: renderAll }); }
+function img(g) { return images[g.key] ||= g.url ? Object.assign(new Image(), { src: g.url, onload: renderAll }) : {}; }
 
 function renderChunk(c) {
   const cells = layout(c); layoutCache[c.chunk] = cells;
@@ -267,9 +305,12 @@ function renderChunk(c) {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     let s = 0;
     for (let j = 0; j < SS; j++) for (let i = 0; i < SS; i++) s += src[(((y * SS + j) * cv.width) + x * SS + i) * 4];
-    core[y * w + x] = Math.round(s / (SS * SS)) >= CORE;
+    const cov = Math.round(s / (SS * SS));
+    // ink (textimg colorize 'ink'): shade 1 (darkest) .. 6 by coverage
+    if (c.style === 'ink') { const k = D.levels.findIndex(t => cov >= t); px[y * w + x] = k < 0 ? 0 : k + 1; }
+    core[y * w + x] = cov >= CORE;
   }
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+  if (c.style !== 'ink') for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     if (core[y * w + x]) { px[y * w + x] = 7; continue; }
     let r = 0;
     for (let dy = -1; dy <= 1 && !r; dy++) for (let dx = -1; dx <= 1; dx++) {
@@ -319,9 +360,10 @@ function paint() {
   const id = sctx.getImageData(0, 0, V.w, V.h);
   for (const c of D.chunks) {
     const px = pixels[c.chunk]; if (!px) continue;
+    const ink = c.style === 'ink';
     for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) {
-      const v = px[y * c.w + x]; if (!v) continue;
-      const col = v === 7 ? C7 : C6, o = ((c.y + y - V.y) * V.w + c.x + x - V.x) * 4;
+      const v = px[y * c.w + x]; if (!v && !ink) continue;
+      const col = ink ? (v ? INK[v - 1] : PAPER) : v === 7 ? C7 : C6, o = ((c.y + y - V.y) * V.w + c.x + x - V.x) * 4;
       id.data[o] = col[0]; id.data[o + 1] = col[1]; id.data[o + 2] = col[2];
     }
   }
@@ -333,12 +375,18 @@ function drawOverlay() {
   octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, overlay.width, overlay.height); octx.setTransform(z, 0, 0, z, -V.x * z, -V.y * z);
   octx.lineWidth = 1 / z;
   for (const c of D.chunks) {
-    if (document.getElementById('boxes').checked) { octx.strokeStyle = 'rgba(255,255,255,.35)'; octx.setLineDash([4 / z, 4 / z]); octx.strokeRect(c.x, c.y, c.w, c.h); octx.setLineDash([]); }
+    const light = c.style === 'ink';   // paper background: dark lines
+    if (document.getElementById('boxes').checked) { octx.strokeStyle = light ? 'rgba(0,0,0,.45)' : 'rgba(255,255,255,.35)'; octx.setLineDash([4 / z, 4 / z]); octx.strokeRect(c.x, c.y, c.w, c.h); octx.setLineDash([]); }
     for (const k of layoutCache[c.chunk] || []) {
       const on = sel === k.g.key;
-      if (!on && !document.getElementById('boxes').checked) continue;
-      octx.strokeStyle = on ? '#ffd400' : 'rgba(255,212,0,.35)'; octx.lineWidth = (on ? 2 : 1) / z;
+      if (!on && !document.getElementById('boxes').checked && k.g.url) continue;
+      octx.strokeStyle = on ? (light ? '#e00000' : '#ffd400') : light ? 'rgba(170,60,0,.55)' : 'rgba(255,212,0,.35)'; octx.lineWidth = (on ? 2 : 1) / z;
       octx.strokeRect(c.x + k.x, c.y + k.y, k.bw, k.bh);
+      if (!k.g.url) {   // not picked yet: show the character
+        octx.fillStyle = 'rgba(255,120,0,.8)'; octx.font = `${k.bh * 0.8}px "PingFang TC", sans-serif`;
+        octx.textAlign = 'center'; octx.textBaseline = 'middle';
+        octx.fillText(k.g.char, c.x + k.x + k.bw / 2, c.y + k.y + k.bh / 2);
+      }
     }
   }
 }
@@ -356,7 +404,7 @@ function buildTables() {
   for (const c of D.chunks) {
     const t = document.createElement('table');
     t.innerHTML = `<tr><th colspan="2">第 ${c.chunk} ${D.unit}（${c.w}×${c.h}）</th><th colspan="4"><span class="size" id="size-${c.chunk}"></span></th></tr>
-      <tr><td colspan="6"><button data-even="${c.chunk}">平均字距</button> <button data-span="${c.chunk}">依分配高度</button></td></tr>
+      <tr><td colspan="6"><button data-even="${c.chunk}">平均字距</button> <button data-span="${c.chunk}">依分配高度</button> <input type="number" data-pct="${c.chunk}" min="10" max="100" step="5" title="這一欄的分配高度；空白＝預設"> %</td></tr>
       <tr><th></th><th>出處</th><th>大小 %</th><th>dx</th><th title="第一個字：與欄頂的距離">字距</th><th></th></tr>`;
     for (const g of c.glyphs) {
       const tr = document.createElement('tr'); tr.id = 'row-' + g.key;
@@ -369,6 +417,11 @@ function buildTables() {
     box.appendChild(t);
   }
   box.addEventListener('input', e => {
+    if (e.target.dataset.pct) {   // per-column share; empty = the default above
+      const v = parseFloat(e.target.value);
+      if (Number.isNaN(v)) delete P.spans[e.target.dataset.pct]; else P.spans[e.target.dataset.pct] = v;
+      save(); return;
+    }
     const { key, f } = e.target.dataset; if (!key) return;
     const v = parseFloat(e.target.value); if (Number.isNaN(v)) return;
     if (f === 'scale') setScale(key, v); else P.glyphs[key][f] = v;
@@ -376,7 +429,7 @@ function buildTables() {
   });
   box.addEventListener('click', e => {
     const { reset, even, span } = e.target.dataset;
-    if (even || span) { const c = D.chunks.find(c => c.chunk === +(even || span)); if (even) evenGaps(c); else spanGaps(c, pct()); renderAll(); return; }
+    if (even || span) { const c = D.chunks.find(c => c.chunk === +(even || span)); if (even) evenGaps(c); else spanGaps(c, colPct(c)); renderAll(); return; }
     if (!reset) return;
     const { c, i } = where(reset), [scale, dx] = DEF[c.glyphs[i].char] || [100, 0];
     setScale(reset, scale); P.glyphs[reset].dx = dx; renderOne(reset);
@@ -385,6 +438,9 @@ function buildTables() {
 function syncInputs() {
   for (const el of document.querySelectorAll('input[data-key]')) if (el !== document.activeElement) el.value = +(+P.glyphs[el.dataset.key][el.dataset.f]).toFixed(2);
   for (const tr of document.querySelectorAll('tr[id^=row-]')) tr.classList.toggle('sel', tr.id === 'row-' + sel);
+  for (const el of document.querySelectorAll('input[data-pct]')) if (el !== document.activeElement) {
+    el.value = P.spans[el.dataset.pct] ?? ''; el.placeholder = pct();
+  }
 }
 function select(key) { sel = key; syncInputs(); drawOverlay(); }
 
@@ -419,8 +475,10 @@ window.addEventListener('keydown', e => {
 });
 
 const pct = () => Math.min(100, Math.max(10, +document.getElementById('pct').value || 80));
+const colPct = c => Math.min(100, Math.max(10, P.spans[c.chunk] ?? pct()));
 document.getElementById('even-all').addEventListener('click', () => { D.chunks.forEach(evenGaps); renderAll(); });
-document.getElementById('span-all').addEventListener('click', () => { D.chunks.forEach(c => spanGaps(c, pct())); renderAll(); });
+document.getElementById('span-all').addEventListener('click', () => { D.chunks.forEach(c => spanGaps(c, colPct(c))); renderAll(); });
+document.getElementById('pct').addEventListener('input', syncInputs);
 document.getElementById('zoom').addEventListener('change', resize);
 document.getElementById('boxes').addEventListener('change', drawOverlay);
 document.getElementById('base').addEventListener('change', e => { P.base = e.target.value; renderAll(); });
@@ -431,7 +489,7 @@ document.getElementById('download').addEventListener('click', () => {
   a.download = 'layout.json'; a.click();
 });
 document.getElementById('load').addEventListener('click', () => {
-  try { let src = JSON.parse(document.getElementById('json').value); if (isLegacy(src)) src = fromLegacy(src); P = defaults(); P.base = src.base ?? P.base;
+  try { let src = JSON.parse(document.getElementById('json').value); if (isLegacy(src)) src = fromLegacy(src); P = defaults(); P.base = src.base ?? P.base; Object.assign(P.spans, src.spans || {});
     for (const k in src.glyphs || {}) if (P.glyphs[k]) Object.assign(P.glyphs[k], src.glyphs[k]);
     document.getElementById('base').value = P.base; renderAll(); } catch (err) { alert('JSON 格式錯誤：' + err.message); }
 });
@@ -444,7 +502,7 @@ buildTables(); document.getElementById('base').value = P.base; resize(); renderA
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--target', choices=['opendat', 'maincmd2'], default='opendat')
+    ap.add_argument('--target', choices=['opendat', 'maincmd2', 'enddat'], default='opendat')
     ap.add_argument('--bg', type=Path, help='640x480 capture of the screen (game area at y=40)')
     args = ap.parse_args()
     layout = ROOT / 'translation/calligraphy' / args.target / 'layout.json'

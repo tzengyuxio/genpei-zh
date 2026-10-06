@@ -43,7 +43,7 @@
 | `tools/dosbox/newgame.mouse` | 滑鼠腳本：片頭 → 新遊戲 → 1180 年 → 源頼朝 → 開局對話 |
 | `tools/dosbox/kakai.mouse` | 滑鼠腳本：讀存檔欄 1 → 外交 → 歌會 → 吟歌（約 100 秒） |
 | `tools/textimg.py` | 片頭／片尾文字圖：依 `translation/images.tsv` 重繪 → NPK016 壓縮 → 原位寫回 Opendat/Enddat.gp |
-| `tools/calligraphy_editor.py` | 產生法帖字的排版網頁：片頭 `build/calligraphy-editor.html`（即時顯示壓縮大小）、滅亡畫面 `--target maincmd2` → `build/calligraphy-editor-maincmd2.html`；調整大小、位置、字距，平均或依欄高百分比分配字距，匯出 `layout.json` |
+| `tools/calligraphy_editor.py` | 產生法帖字的排版網頁：片頭 `build/calligraphy-editor.html`（即時顯示壓縮大小）、滅亡畫面 `--target maincmd2`、片尾詩句與卷軸 `--target enddat`（`build/calligraphy-editor-<target>.html`）；調整大小、位置、字距，平均或依欄高百分比分配字距，匯出 `layout.json` |
 | `tools/mob_kao_explorer.py` | 產生 `build/mob-kao-explorer.html`：大眾臉（Montage 組合頭像）探索器，選類型／頭／身／眼／口／背景即時組出 64×80 頭像與頭像碼，列出使用該碼與相同部件的武將（沿用 `dump_gfx.py` 的組法，310 人逐 pixel 相同；需先跑 `dump_data.py`）。發布版放在 fc-sangokushi repo 的 Pages：<https://tzengyuxio.github.io/fc-sangokushi/genpei-mob-kao-explorer.html>（手動複製 `docs/genpei-mob-kao-explorer.html`）；跨遊戲整合規劃見 `docs/backlog/mob-kao-explorer-integration.md` |
 | `tools/saves.py` | Savedata.gp 存檔欄 ↔ `build/saves/*.slot` 快照庫（list/library/export/import/reset） |
 

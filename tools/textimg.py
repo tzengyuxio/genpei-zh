@@ -29,6 +29,8 @@ images.tsv columns: file, chunk, style, text.
                   (`<chunk>-<pos>-<char>[_...].png`, black on white), sized and
                   offset by layout.json there (tools/calligraphy_editor.py);
                   white core inside a 1 px dark rim, as the original
+         ink      glyph images as above, coloured like the ending scroll
+                  (Enddat 72-77): dark ink fading out through INK_RAMP
   text   columns separated by "/", laid out right to left
 """
 from __future__ import annotations
@@ -64,6 +66,10 @@ def find_font(*patterns: str) -> Path:
 # macOS Kaiti, a downloadable system font whose asset path differs per machine
 BRUSH_FONT = find_font('/System/Library/AssetsV2/com_apple_MobileAsset_Font*/*.asset/AssetData/Kaiti.ttc')
 BITMAP_FONT = ROOT / 'tools/fonts/jiskan24-fullwidth.bdf.gz'
+# ending scroll ink, darkest to lightest (Enddat prefix palette 10), and the
+# coverage (0..255) each shade starts at
+INK_RAMP = [14, 11, 15, 9, 12, 8]
+INK_LEVELS = [128, 100, 80, 60, 40, 24]
 # uncompressed calligraphy columns: file -> (offset, width, height), 4bpp (formats.md §10.6)
 RAW_COLUMNS = {'Maincmd2.gp': (0x44433, 48, 358)}
 # horizontal punctuation -> vertical presentation forms
@@ -233,6 +239,8 @@ def colorize(style: str, cov: list[int], w: int, h: int, orig: bytes) -> bytes:
                          for dx, dy in ring):
                     out[i] = rim
         return bytes(out)
+    if style == 'ink':
+        return bytes(next((k for k, t in zip(INK_RAMP, INK_LEVELS) if c >= t), 0) for c in cov)
     # the core colour is the one enclosed by ink, not the most frequent one
     # (Opendat 14-17 have more edge pixels than core pixels)
     def enclosed(v: int) -> float:
@@ -273,7 +281,7 @@ def main(argv: list[str]) -> None:
         for r in (r for r in rows if r['file'] == name):
             c = chunks[int(r['chunk'])]
             orig = npk.decode(c)
-            if r['style'] == 'glyphs':
+            if r['style'] in ('glyphs', 'ink'):
                 folder = ROOT / 'translation/calligraphy' / Path(name).stem.lower()
                 cov = render_glyphs(glyph_cells(folder, c.index, r['text'], c.width, c.height), c.width, c.height)
             else:
