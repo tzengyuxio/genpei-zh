@@ -43,7 +43,7 @@
 | `tools/dosbox/newgame.mouse` | 滑鼠腳本：片頭 → 新遊戲 → 1180 年 → 源頼朝 → 開局對話 |
 | `tools/dosbox/kakai.mouse` | 滑鼠腳本：讀存檔欄 1 → 外交 → 歌會 → 吟歌（約 100 秒） |
 | `tools/textimg.py` | 片頭／片尾文字圖：依 `translation/images.tsv` 重繪 → NPK016 壓縮 → 原位寫回 Opendat/Enddat.gp |
-| `tools/calligraphy_editor.py` | 產生 `build/calligraphy-editor.html`：調整片頭法帖字的大小與位置，即時顯示壓縮大小，匯出 `layout.json` |
+| `tools/calligraphy_editor.py` | 產生法帖字的排版網頁：片頭 `build/calligraphy-editor.html`（即時顯示壓縮大小）、滅亡畫面 `--target maincmd2` → `build/calligraphy-editor-maincmd2.html`；調整大小、位置、字距，平均或依欄高百分比分配字距，匯出 `layout.json` |
 | `tools/mob_kao_explorer.py` | 產生 `build/mob-kao-explorer.html`：大眾臉（Montage 組合頭像）探索器，選類型／頭／身／眼／口／背景即時組出 64×80 頭像與頭像碼，列出使用該碼與相同部件的武將（沿用 `dump_gfx.py` 的組法，310 人逐 pixel 相同；需先跑 `dump_data.py`）。發布版放在 fc-sangokushi repo 的 Pages：<https://tzengyuxio.github.io/fc-sangokushi/genpei-mob-kao-explorer.html>（手動複製 `docs/genpei-mob-kao-explorer.html`）；跨遊戲整合規劃見 `docs/backlog/mob-kao-explorer-integration.md` |
 | `tools/saves.py` | Savedata.gp 存檔欄 ↔ `build/saves/*.slot` 快照庫（list/library/export/import/reset） |
 
@@ -199,6 +199,8 @@ tools/web.sh serve    # 同上，再開 http://localhost:8000/
 | 2026-10-06 | 片頭／片尾的文字圖也譯：旁白用思源宋體，書法用楷體，照原圖的色號與格局重繪；標題「源平合戦」保留不改 |
 | 2026-10-06 | 旁白改用 jiskan 24 點陣明朝體、字距 26 px、外框 2 px。輪廓字（思源宋體、游明朝等）縮到 24 px 筆畫粗細不一或糊在一起；原版本身就是 24 點陣字。譯文每欄可比原文少 0～2 字以放進版面 |
 | 2026-10-06 | 片頭平家物語改用古代法帖的字圖（逐字挑選，記出處於檔名），大小與位置用 `tools/calligraphy_editor.py` 調整後存 `layout.json`；外圍補 1 px 深藍邊。片尾書法維持楷體 |
+| 2026-10-07 | 勢力滅亡畫面的平家物語（Maincmd2 四欄，4bpp 48×358 未壓縮）也改用法帖字，譯文與片尾 Enddat 68～71 相同，標點改「、」「。」並直接取原圖的筆跡；`textimg.py` 原位覆寫。實機截圖與預覽逐 pixel 相同 |
+| 2026-10-07 | 法帖字排版從「整欄平均分配＋dy」改成每字 `gap`（與上一字的距離）：改大小、拖曳只動該字，另有平均字距與依欄高百分比分配。片頭 `layout.json` 換算後輸出逐 byte 相同 |
 | 2026-10-06 | 實機驗證改用存檔快照（`tools/saves.py`）。DOSBox-X 的 save state 只能用熱鍵讀取，沒有命令列參數可以在啟動時載入，所以不採用 |
 
 ## 下一步
@@ -210,5 +212,5 @@ tools/web.sh serve    # 同上，再開 http://localhost:8000/
    - 片尾的毛筆字（Enddat 68～77）。
 2. 移植 kami-zh 的 `jis.py`（全 TSV 缺字掃描＋替代建議）與 `consistency.py`（變體混用、同原文多譯、與 glossary 不一致）。
 3. 寫 `install.py`：把上面「建置與驗證」的手動步驟變成一鍵。
-4. 其他含日文的圖（Logo「歴史シミュレーションゲーム」、Mainstl 月名、Maincmd「統治」「行軍」（指令按鈕都是漢字，不翻）、Maincmd2 平家物語書法）視需要再譯。
+4. 其他含日文的圖（Logo「歴史シミュレーションゲーム」、Mainstl 月名、Maincmd「統治」「行軍」（指令按鈕都是漢字，不翻））視需要再譯。
 5. 發佈：移植 `mkpatch.py`／Go patcher。

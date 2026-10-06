@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Redraw the text images of Opendat.gp / Enddat.gp in Chinese.
+"""Redraw the text images of Opendat.gp / Enddat.gp / Maincmd2.gp in Chinese.
 
 The opening narration, the 平家物語 calligraphy and the ending narration
 are NPK016 pictures, not text. This tool renders the translations from
@@ -17,6 +17,10 @@ payload, zero padding, the original trailing record. The decoder stops
 after width*height pixels, so the padding is never decoded. A new chunk
 larger than its slot is an error.
 
+Maincmd2.gp's defeat calligraphy is not NPK: four uncompressed 4bpp
+48x358 columns (rightmost first), rewritten in place; `chunk` is the
+column number 1-4.
+
 images.tsv columns: file, chunk, style, text.
   style  narr     vertical narration (white fill, 2 px outline), 24 px bitmap
                   glyphs on a 26 px pitch, 32 px columns
@@ -33,12 +37,14 @@ import csv
 import json
 import functools
 import gzip
+import math
 import subprocess
 import sys
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
+import dump_gfx  # noqa: E402
 import gfx  # noqa: E402
 import npk  # noqa: E402
 
@@ -58,6 +64,8 @@ def find_font(*patterns: str) -> Path:
 # macOS Kaiti, a downloadable system font whose asset path differs per machine
 BRUSH_FONT = find_font('/System/Library/AssetsV2/com_apple_MobileAsset_Font*/*.asset/AssetData/Kaiti.ttc')
 BITMAP_FONT = ROOT / 'tools/fonts/jiskan24-fullwidth.bdf.gz'
+# uncompressed calligraphy columns: file -> (offset, width, height), 4bpp (formats.md §10.6)
+RAW_COLUMNS = {'Maincmd2.gp': (0x44433, 48, 358)}
 # horizontal punctuation -> vertical presentation forms
 VERT = str.maketrans({'，': '︐', '、': '︑', '。': '︒', '…': '︙', '：': '︓',
                       '！': '︕', '？': '︖', '「': '﹁', '」': '﹂'})
@@ -76,34 +84,57 @@ def render(chars: list[tuple[int, int, str]], w: int, h: int, font: Path, size: 
     return list(subprocess.run(cmd, check=True, capture_output=True).stdout)
 
 
+# starting (scale %, dx) before layout.json; same as calligraphy_editor.py.
+# The 、 and 。 images are the original Maincmd2 marks: at 7 % / 12 % of a
+# 44 px base they come out at their native 3 and 5 px, right of centre.
+DEFAULTS = {'之': (50, 0), '、': (7, 12), '。': (12, 11)}
+
+
+def spread(heights: list[int], top: int, span: float) -> list[int]:
+    """Gaps that put the glyphs from `top` to `top + span` with equal spacing.
+
+    gaps[0] is the space above the first glyph, gaps[k] the space between
+    glyph k-1 and glyph k. Same rounding as calligraphy_editor.py.
+    """
+    n = len(heights)
+    g = (span - sum(heights)) / (n - 1) if n > 1 else 0
+    ys = [math.floor(top + sum(heights[:k]) + k * g + 0.5) for k in range(n)]
+    return [ys[0]] + [ys[k] - ys[k - 1] - heights[k - 1] for k in range(1, n)]
+
+
 @functools.cache
 def glyph_cells(folder: Path, chunk: int, text: str, w: int, h: int) -> list[tuple[int, int, Path, int, int]]:
     """(x, y, image, width, height) per glyph; same layout as calligraphy_editor.py.
 
-    A glyph's scale is a percentage of the base width (the column width less
-    4 px, or a fixed width); the column is shrunk as a whole only if it would
-    overflow. Glyphs are spread down the column with equal gaps, centred, then
-    moved by (dx, dy) but kept inside the column.
+    layout.json gives each glyph a scale (percent of the base width: the
+    column width less 4 px, or a fixed width), dx (from the column centre)
+    and gap (px of space above it: from the column top for the first glyph,
+    from the glyph above otherwise). Glyphs missing from layout.json get the
+    DEFAULTS size and the whole column is spread evenly over 97 % of its
+    height. Boxes are kept inside the column.
     """
     params = json.loads((folder / 'layout.json').read_text()) if (folder / 'layout.json').exists() else {}
-    base_w = w - 4 if params.get('base', 'column') == 'column' else int(params['base'])
-    files, rel, dims, moves = [], [], [], []
+    base = w - 4 if params.get('base', 'column') == 'column' else int(params['base'])
+    files, boxes, dxs, gaps = [], [], [], []
     for k, ch in enumerate(text, 1):
         (f,) = folder.glob(f'{chunk}-{k}-*.png')
         p = params.get('glyphs', {}).get(f'{chunk}-{k}', {})
+        scale, dx = DEFAULTS.get(ch, (100, 0))
+        r = p.get('scale', scale) / 100
+        gw, gh = map(int, subprocess.run(['magick', 'identify', '-format', '%w %h', str(f)],
+                                         check=True, capture_output=True, text=True).stdout.split())
         files.append(f)
-        rel.append(p.get('scale', 50 if ch == '之' else 100) / 100)
-        moves.append((p.get('dx', 0), p.get('dy', 0)))
-        dims.append(tuple(map(int, subprocess.run(['magick', 'identify', '-format', '%w %h', str(f)],
-                                                  check=True, capture_output=True, text=True).stdout.split())))
-    base = min(base_w, h * 0.97 / sum(r * gh / gw for r, (gw, gh) in zip(rel, dims)))
-    boxes = [(int(base * r), int(base * r * gh / gw)) for r, (gw, gh) in zip(rel, dims)]
-    gap = (h - sum(bh for _, bh in boxes)) / len(boxes)
-    cells, y = [], gap / 2
-    for f, (bw, bh), (dx, dy) in zip(files, boxes, moves):
-        x0, y0 = (w - bw) // 2, int(y)
-        cells.append((min(max(x0 + dx, 0), max(w - bw, 0)), min(max(y0 + dy, 0), max(h - bh, 0)), f, bw, bh))
-        y += bh + gap
+        boxes.append((int(base * r), int(base * r * gh / gw)))
+        dxs.append(p.get('dx', dx))
+        gaps.append(p.get('gap'))
+    if None in gaps:
+        gaps = spread([bh for _, bh in boxes], math.floor(h * 0.015 + 0.5), h * 0.97)
+    cells, y = [], 0
+    for f, (bw, bh), dx, gap in zip(files, boxes, dxs, gaps):
+        y += gap
+        x = (w - bw) // 2 + dx
+        cells.append((min(max(x, 0), max(w - bw, 0)), min(max(y, 0), max(h - bh, 0)), f, bw, bh))
+        y += bh
     return cells
 
 
@@ -233,6 +264,10 @@ def main(argv: list[str]) -> None:
     for name in dict.fromkeys(r['file'] for r in rows):
         src = (ROOT / 'game/GENPEI' / name).read_bytes()
         data = bytearray(src)
+        if name in RAW_COLUMNS:
+            redraw_columns(name, [r for r in rows if r['file'] == name], data, preview)
+            (build / name).write_bytes(data)
+            continue
         chunks = npk.scan_archive(src)
         pals = gfx.load_palettes(ROOT / 'game/GENPEI' / name, 0, chunks[0].offset // 48)
         for r in (r for r in rows if r['file'] == name):
@@ -256,9 +291,30 @@ def main(argv: list[str]) -> None:
             print(f'{name}#{c.index}: {len(new)}/{room} bytes')
             if preview:
                 # palette: the one the dump picked as most plausible
+                k = dump_gfx.KNOWN_PALETTES.get((name, c.index)) or best_pal(orig, pals)
                 gfx.write_png(preview / f'{Path(name).stem.lower()}_{c.index:03d}.png',
-                              c.width, c.height, px, pals[best_pal(orig, pals)], scale=2)
+                              c.width, c.height, px, pals[k], scale=2)
         (build / name).write_bytes(data)
+
+
+def redraw_columns(name: str, rows: list[dict], data: bytearray, preview: Path | None) -> None:
+    """Rewrite the uncompressed calligraphy columns of RAW_COLUMNS in place."""
+    off, w, h = RAW_COLUMNS[name]
+    size = w * h // 2
+    folder = ROOT / 'translation/calligraphy' / Path(name).stem.lower()
+    for r in rows:
+        col = int(r['chunk'])
+        at = off + (col - 1) * size
+        orig = gfx.decode_planar_bytes(data, w, h, 4, offset=at)
+        cov = render_glyphs(glyph_cells(folder, col, r['text'], w, h), w, h)
+        px = colorize('glyphs', cov, w, h, orig)
+        data[at:at + size] = gfx.encode_planar_bytes(px)
+        print(f'{name} column {col}: {r["text"]}')
+        if preview:
+            # the colours of the last frame of the defeat screen
+            pal = [(0, 0, 0)] * 16
+            pal[7], pal[14] = (0xa2, 0xd3, 0xe3), (0x00, 0x00, 0x30)
+            gfx.write_png(preview / f'{Path(name).stem.lower()}_col{col}.png', w, h, px, pal, scale=2)
 
 
 def best_pal(px: bytes, pals: list[gfx.Palette]) -> int:

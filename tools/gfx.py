@@ -97,6 +97,16 @@ def decode_planar_bytes(data: bytes, width: int, height: int, planes: int = 4,
     return bytes(out)
 
 
+def encode_planar_bytes(pixels: bytes, planes: int = 4) -> bytes:
+    """Inverse of decode_planar_bytes: every 8 pixels become `planes` bytes."""
+    out = bytearray()
+    for x in range(0, len(pixels), 8):
+        grp = pixels[x:x + 8]
+        for p in range(planes):
+            out.append(sum(0x80 >> k for k, v in enumerate(grp) if v >> p & 1))
+    return bytes(out)
+
+
 def decode_planar_frames(data: bytes, width: int, height: int, planes: int = 4,
                          offset: int = 0) -> bytes:
     """Whole-plane layout: plane 0 for the whole image, then plane 1, ..."""
