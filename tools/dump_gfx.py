@@ -277,9 +277,96 @@ def do_haikei() -> None:
     data = read("Haikei.gp")
     d = Dump("portraits", "Haikei")
     d.add("textures_64x400", 64, 400, planar(data, 0, 64, 400, 3), mainpal(), 0, 9600,
-          "Mainpal[0]", "probably five 64x80 textures; use unknown", sheet=False)
+          "Mainpal[0]", "five 64x80 portrait backgrounds, (general id // 2) % 5", sheet=False)
     masked_parts(d, data, HAIKEI_PARTS)
     d.close(cols=16)
+
+
+# Montage composition table: Main.exe (unpacked) DGROUP:0x59CE, 3 x 0x26
+# bytes, picked by face code bits 15-14 minus 1 (formats.md §10.3).
+MONTAGE_TABLE = 0x5C23E
+SCEN_GENERALS = 0x26          # Sndata.gp: generals of scenario 0, 400 x 71
+WIN_W, WIN_H = 64, 80         # portrait window shown in game
+
+
+def buf_xy(pos: int) -> tuple[int, int]:
+    """Position in the 128x160 portrait buffer (16 bytes per row)."""
+    return pos % 16 * 8, pos // 16
+
+
+def montage_types(exe: bytes) -> list[dict]:
+    out = []
+    for t in range(3):
+        v = struct.unpack_from("<IIHH8H5H", exe, MONTAGE_TABLE + t * 0x26)
+        out.append(dict(
+            # layers in drawing order: (file, offset, width, height, position)
+            body=("Montage.gp", v[1], v[6] * 8, v[7], v[13]),
+            head=("Montage.gp", v[0], v[4] * 8, v[5], v[12]),
+            eyes=("Haikei.gp", v[2], v[8] * 8, v[9], v[14]),
+            mouth=("Haikei.gp", v[3], v[10] * 8, v[11], v[15]),
+            window=buf_xy(v[16])))
+    return out
+
+
+def render_face(code: int, kao: list, types: list[dict], files: dict) -> tuple[bytes, tuple]:
+    """Face code -> 128x160 portrait (TRANSPARENT where the background
+    shows) and the top-left corner of the 64x80 in-game window."""
+    if code < 90:
+        face, sil, window = kao[code]
+        return bytes(gfx.TRANSPARENT if s else v for v, s in zip(face, sil)), window
+    t = types[(code >> 14) - 1]
+    index = dict(head=code >> 11 & 7, body=code >> 8 & 7, eyes=code >> 4 & 15, mouth=code & 15)
+    out = bytearray([gfx.TRANSPARENT]) * (128 * 160)
+    for layer in ("body", "head", "eyes", "mouth"):
+        name, off, w, h, pos = t[layer]
+        data = files[name]
+        csize = w * h * 3 // 8
+        o = off + index[layer] * (csize + w * h // 8)
+        px = gfx.apply_mask(planar(data, o, w, h, 3), data, w, h, o + csize)
+        x0, y0 = buf_xy(pos)
+        for y in range(h):
+            for x in range(w):
+                v = px[y * w + x]
+                if v != gfx.TRANSPARENT and x0 + x < 128 and y0 + y < 160:
+                    out[(y0 + y) * 128 + x0 + x] = v
+    return bytes(out), t["window"]
+
+
+def do_generals() -> None:
+    """Every general's portrait as shown in game (64x80 window over a
+    Haikei background, background = (general id // 2) % 5) plus the
+    full 128x160 composite with a transparent background."""
+    import unpack_exe
+    types = montage_types(unpack_exe.unpack(read("Main.exe")))
+    files = {n: read(n) for n in ("Montage.gp", "Haikei.gp")}
+    tex = planar(files["Haikei.gp"], 0, 64, 400, 3)
+    kao, data, pos = [], read("Kaodata.gp"), 0
+    while pos < len(data):
+        _, _, face, pos = gfx.read_rle3(data, pos)
+        _, _, sil, pos = gfx.read_rle3(data, pos)     # 7 = background
+        kao.append((face, sil, (data[pos], data[pos + 1])))
+        pos += 2
+    sn = read("Sndata.gp")
+    d = Dump("portraits", "Generals")
+    for i in range(400):
+        g = sn[SCEN_GENERALS + i * 71:SCEN_GENERALS + (i + 1) * 71]
+        name = "".join(g[a:b].split(b"\0")[0].decode("cp932") for a, b in ((0, 7), (14, 19)))
+        code = struct.unpack_from("<H", g, 0x1A)[0]
+        full, (cx, cy) = render_face(code, kao, types, files)
+        bg = i // 2 % 5
+        win = bytearray(WIN_W * WIN_H)
+        for y in range(WIN_H):
+            for x in range(WIN_W):
+                v = full[(cy + y) * 128 + cx + x]
+                win[y * WIN_W + x] = tex[(bg * WIN_H + y) * 64 + x] if v == gfx.TRANSPARENT else v
+        src = (f"kaodata {code}" if code < 90 else
+               f"montage type {code >> 14} head {code >> 11 & 7} body {code >> 8 & 7} "
+               f"eyes {code >> 4 & 15} mouth {code & 15}")
+        note = f"face 0x{code:04X} = {src}; window ({cx},{cy}); background {bg}"
+        d.add(f"{i:03d}_{name}", WIN_W, WIN_H, bytes(win), mainpal(), "", "", "Mainpal[0]", note)
+        d.add(f"full/{i:03d}_{name}", 128, 160, full, mainpal(), "", "", "Mainpal[0]", note,
+              sheet=False)
+    d.close(cols=20)
 
 
 def do_mainmap() -> None:
@@ -452,11 +539,15 @@ def do_mainobj() -> None:
     d.close()
 
 
-# Maincmd.gp: 4bpp UI parts; only the first boundary is exact.
+# Maincmd.gp: 4bpp UI parts; only the first boundary and the command
+# buttons (11 frames of 32x32 at 40128) are exact.
 MAINCMD_BANDS = [(0, 3200, 16, "pillar"), (3200, 21312, 192, "frames_192"),
-                 (21312, 36800, 24, "textures_24"), (36800, 46592, 64, "labels_icons_64"),
+                 (21312, 36800, 24, "textures_24"), (36800, 40128, 32, "labels_icons_32"),
+                 (45760, 46592, 32, "after_commands_32"),
                  (46592, 50800, 40, "band_40"), (50800, 55600, 216, "band_216"),
                  (55600, 57408, 16, "band_16"), (57408, 61216, 160, "band_160")]
+MAINCMD_BUTTONS = ["命令", "終了", "地図", "一覧", "機能", "説明",
+                   "内政", "軍事", "人事", "外交", "計略"]
 
 
 def do_maincmd() -> None:
@@ -465,7 +556,11 @@ def do_maincmd() -> None:
     for a, b, w, label in MAINCMD_BANDS:
         strip(d, data, label, a, b, w, 4,
               "exact" if a == 0 else "approximate band boundaries")
-    d.close()
+    for i, name in enumerate(MAINCMD_BUTTONS):
+        off = 40128 + i * 512
+        d.add(f"command_{i:02d}", 32, 32, planar(data, off, 32, 32, 4), mainpal(), off,
+              512, "Mainpal[0]", f"command button {name}")
+    d.close(cols=len(MAINCMD_BUTTONS))
 
 
 def do_maincmd2() -> None:
@@ -484,8 +579,9 @@ def do_maincmd2() -> None:
     d.add("screen_640x400", 640, 400, planar(data, 0x25033, 640, 400, 4), mainpal(),
           0x25033, 128000, "Mainpal[0]", "folding-screen painting; colours 8-15 unverified",
           sheet=False)
-    d.add("calligraphy_64x1432", 64, 1432, planar(data, 0x44433, 64, 1432, 3), mainpal(),
-          0x44433, 34368, "Mainpal[0]", "4 columns of 64x358", sheet=False)
+    d.add("calligraphy_48x1432", 48, 1432, planar(data, 0x44433, 48, 1432, 4), mainpal(),
+          0x44433, 34368, "Mainpal[0]", "4 columns of 48x358; 7 = core, 14 = outline",
+          sheet=False)
     d.close()
 
 
@@ -508,7 +604,7 @@ def do_ending() -> None:
 
 JOBS = {
     "Palettes": dump_palettes, "Kaodata": do_kaodata, "Montage": do_montage,
-    "Haikei": do_haikei, "Kisetsu": do_kisetsu, "Mainmap": do_mainmap,
+    "Haikei": do_haikei, "Generals": do_generals, "Kisetsu": do_kisetsu, "Mainmap": do_mainmap,
     "Npk": do_npk_simple, "Hkeshiki": do_hkeshiki, "Hground": do_hground,
     "Hunitpat": do_hunitpat, "Hikuchi": do_hikuchi, "Hkei": do_hkei,
     "Hchikei": do_hchikei, "Mainanm": do_mainanm, "Mainobj": do_mainobj,

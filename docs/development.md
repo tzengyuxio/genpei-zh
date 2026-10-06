@@ -33,8 +33,9 @@
 | `tools/message.py` | Message.gp ↔ TSV（重建 offset table、重新壓縮；printf 檢核、行寬 warning） |
 | `tools/npk.py` | NPK016 圖形解壓（48-byte header） |
 | `tools/gfx.py` | 共用圖形函式：BRG 色盤、planar／mask／RLE3 解碼、純標準庫 PNG 輸出 |
-| `tools/dump_gfx.py` | 全部圖檔 → `build/dump/<分類>/<檔名>/` PNG＋總覽＋index.tsv（formats.md §10） |
-| `tools/dump_data.py` | Sndata.gp 4 劇本＋Main.exe 內建表 → `build/dump/data/*.tsv`（formats.md §4） |
+| `tools/dump_gfx.py` | 全部圖檔 → `build/dump/<分類>/<檔名>/` PNG＋總覽＋index.tsv；`Generals` 依頭像碼組出 400 人的遊戲內頭像（formats.md §10、§10.3） |
+| `tools/dump_data.py` | 武將、勢力、據點、官位、名物（Sndata.gp 4 劇本）＋戰略地圖節點（Main.exe）＋合戰地圖（Hchikei.gp）→ `build/data/*.tsv`（formats.md §4） |
+| `tools/guide_tables.py` | `build/data/*.tsv` → `docs/guide/` 攻略用資料表（劇本、武將、據點、寶物、官位；`tables.md` 為目錄與欄位說明） |
 | `tools/sjis_scan.py` | 通用 Shift-JIS 掃描（探索未知檔案用） |
 | `tools/analyze_sndata_gp.py` | Sndata.gp 武將 record dump |
 | `tools/mousetsr.py` | 產生腳本化滑鼠 TSR（kami-zh 原封移植） |
@@ -43,6 +44,7 @@
 | `tools/dosbox/kakai.mouse` | 滑鼠腳本：讀存檔欄 1 → 外交 → 歌會 → 吟歌（約 100 秒） |
 | `tools/textimg.py` | 片頭／片尾文字圖：依 `translation/images.tsv` 重繪 → NPK016 壓縮 → 原位寫回 Opendat/Enddat.gp |
 | `tools/calligraphy_editor.py` | 產生 `build/calligraphy-editor.html`：調整片頭法帖字的大小與位置，即時顯示壓縮大小，匯出 `layout.json` |
+| `tools/mob_kao_explorer.py` | 產生 `build/mob-kao-explorer.html`：大眾臉（Montage 組合頭像）探索器，選類型／頭／身／眼／口／背景即時組出 64×80 頭像與頭像碼，列出使用該碼與相同部件的武將（沿用 `dump_gfx.py` 的組法，310 人逐 pixel 相同；需先跑 `dump_data.py`） |
 | `tools/saves.py` | Savedata.gp 存檔欄 ↔ `build/saves/*.slot` 快照庫（list/library/export/import/reset） |
 
 ## 建置與驗證（目前是手動步驟）
@@ -100,6 +102,7 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 |---|---|
 | `kiyomori-1180-10-start` | 平清盛，1180 年 10 月第一個統治階段。開局事件都已點完，可以直接下指令（歌會用這個） |
 | `orig-s1-yoshitsune-1185-10`、`orig-s2-yoritomo-1183-01` | 原版 Savedata.gp 附的兩格 |
+| `yoshitsune-1185-11-lose-before-battle` | 源義経，1185 年 11 月。麾下無人無兵，很快會被攻打，用來看勢力滅亡後的平家物語書法（Maincmd2） |
 
 讀檔流程的座標：
 - 片頭點過之後，約 17 秒出現主選單，「讀取進度」在 (328,236)。
@@ -184,10 +187,10 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 
 1. 實機巡檢：
    - Message.gp 待確認的參數語序：0-115、0-526～529、3-032 的 `%W1`。
-   - Main.exe 待確認的片段組合：40「結束」、266～268 的存讀檔句型、304／305 的攻打通知。
+   - Main.exe 待確認的片段組合：40「結束」、304／305 的攻打通知（266～268 存讀檔句型已確認）。
    - 未譯的兩筆：246「蛇」、450「受け」。
    - 片尾的毛筆字（Enddat 68～77）。
 2. 移植 kami-zh 的 `jis.py`（全 TSV 缺字掃描＋替代建議）與 `consistency.py`（變體混用、同原文多譯、與 glossary 不一致）。
 3. 寫 `install.py`：把上面「建置與驗證」的手動步驟變成一鍵。
-4. 其他含日文的圖（Logo「歴史シミュレーションゲーム」、Mainstl 月名、Maincmd「統治」「行軍」、Maincmd2 平家物語書法）視需要再譯。
+4. 其他含日文的圖（Logo「歴史シミュレーションゲーム」、Mainstl 月名、Maincmd「統治」「行軍」（指令按鈕都是漢字，不翻）、Maincmd2 平家物語書法）視需要再譯。
 5. 發佈：移植 `mkpatch.py`／Go patcher。

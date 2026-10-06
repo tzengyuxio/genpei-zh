@@ -40,7 +40,7 @@ game/GENPEI/Message.gp
 | Message.gp（LS11）解壓／重新壓縮 | ✓ `tools/ls11.py` |
 | Message.gp ↔ TSV | ✓ `tools/message.py`（1,305 則，printf 參數與 JIS 檢核） |
 | NPK016 圖形解壓 | ✓ `tools/npk.py` |
-| 全部圖檔／資料表 dump（PNG、TSV → `build/dump/`） | ✓ `tools/dump_gfx.py`、`tools/dump_data.py` |
+| 全部圖檔／資料表 dump（PNG → `build/dump/`、TSV → `build/data/`） | ✓ `tools/dump_gfx.py`、`tools/dump_data.py` |
 | Main.exe 解包（原檔是 RLE 壓縮） | ✓ `tools/unpack_exe.py` |
 | EXE 文字抽取 → TSV（去雜訊、合併重複） | ✓ `tools/exe_text.py` |
 | TSV → EXE 原地回寫 | ✓ `tools/patch.py`（多位置、JIS X 0208／printf／控制碼檢核，不變更檔案大小） |
