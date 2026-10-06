@@ -5,7 +5,8 @@ The opening narration, the 平家物語 calligraphy and the ending narration
 are NPK016 pictures, not text. This tool renders the translations from
 translation/images.tsv with ImageMagick, maps them onto the original
 chunk's colour indices and writes each new chunk back into its original
-slot, so every chunk keeps its offset:
+slot, so every chunk keeps its offset. The narration uses the jiskan
+24x24 bitmap font (tools/fonts/), the calligraphy macOS Kaiti:
 
     python3 tools/textimg.py build/GENPEI [--preview DIR]
 
@@ -17,13 +18,16 @@ after width*height pixels, so the padding is never decoded. A new chunk
 larger than its slot is an error.
 
 images.tsv columns: file, chunk, style, text.
-  style  narr   ruled vertical narration (white fill, outlined), 24 px
-         brush  calligraphy, one column, glyphs spread over the height
+  style  narr     vertical narration (white fill, 2 px outline), 24 px bitmap
+                  glyphs on a 26 px pitch, 32 px columns
+         brush    calligraphy in Kaiti, one column, glyphs spread over the height
   text   columns separated by "/", laid out right to left
 """
 from __future__ import annotations
 
 import csv
+import functools
+import gzip
 import subprocess
 import sys
 from collections import Counter
@@ -46,12 +50,9 @@ def find_font(*patterns: str) -> Path:
     sys.exit(f'font not found: {patterns}')
 
 
-FONT = {
-    # Source Han Serif, installed by the user
-    'narr': find_font('~/Library/Fonts/SourceHanSerif*.ttc', '/Library/Fonts/SourceHanSerif*.ttc'),
-    # macOS Kaiti, a downloadable system font whose asset path differs per machine
-    'brush': find_font('/System/Library/AssetsV2/com_apple_MobileAsset_Font*/*.asset/AssetData/Kaiti.ttc'),
-}
+# macOS Kaiti, a downloadable system font whose asset path differs per machine
+BRUSH_FONT = find_font('/System/Library/AssetsV2/com_apple_MobileAsset_Font*/*.asset/AssetData/Kaiti.ttc')
+BITMAP_FONT = ROOT / 'tools/fonts/jiskan24-fullwidth.bdf.gz'
 # horizontal punctuation -> vertical presentation forms
 VERT = str.maketrans({'，': '︐', '、': '︑', '。': '︒', '…': '︙', '：': '︓',
                       '！': '︕', '？': '︖', '「': '﹁', '」': '﹂'})
@@ -70,16 +71,66 @@ def render(chars: list[tuple[int, int, str]], w: int, h: int, font: Path, size: 
     return list(subprocess.run(cmd, check=True, capture_output=True).stdout)
 
 
+@functools.cache
+def load_bdf(path: Path) -> dict[int, list[int]]:
+    """24x24 BDF glyphs as {codepoint: 24 row bitmasks, bit 23 = leftmost}."""
+    glyphs, cp, rows = {}, None, None
+    with gzip.open(path, 'rt', encoding='latin-1') as f:
+        for line in f:
+            key = line.split()[0] if line.strip() else ''
+            if key == 'ENCODING':
+                cp = int(line.split()[1])
+            elif key == 'BITMAP':
+                rows = []
+            elif key == 'ENDCHAR':
+                glyphs[cp], rows = rows, None
+            elif rows is not None:
+                rows.append(int(key, 16))
+    return glyphs
+
+
+# the font has no vertical forms: shift the horizontal comma/full stop from
+# the bottom-left to the top-right of the cell, turn the ellipsis upright
+SHIFTED = {'︐': '，', '︑': '、', '︒': '。'}
+
+
+def bitmap_glyph(glyphs: dict[int, list[int]], ch: str) -> list[list[bool]]:
+    base = SHIFTED.get(ch, '…' if ch == '︙' else ch)
+    if ord(base) not in glyphs:
+        sys.exit(f'{ch!r} is not in {BITMAP_FONT.name}')
+    grid = [[bool(r >> (23 - x) & 1) for x in range(24)] for r in glyphs[ord(base)]]
+    if ch in SHIFTED:
+        return [[0 <= y + 13 < 24 and 0 <= x - 13 < 24 and grid[y + 13][x - 13] for x in range(24)]
+                for y in range(24)]
+    if ch == '︙':
+        return [[grid[23 - x][y] for x in range(24)] for y in range(24)]
+    return grid
+
+
+def render_bitmap(chars: list[tuple[int, int, str]], w: int, h: int) -> list[int]:
+    """Draw (x, y, char) cells with the bitmap font; return 0/255 coverage."""
+    glyphs = load_bdf(BITMAP_FONT)
+    cov = [0] * (w * h)
+    for x0, y0, ch in chars:
+        for y, row in enumerate(bitmap_glyph(glyphs, ch)):
+            for x, on in enumerate(row):
+                if on:
+                    cov[(y0 + y) * w + x0 + x] = 255
+    return cov
+
+
 def layout(style: str, text: str, w: int, h: int) -> tuple[list[tuple[int, int, str]], int]:
     cols = [c.translate(VERT) for c in text.split('/')]
     if style == 'narr':
-        size, pitch_x, pitch_y = 24, 32, 24
+        # the original glyphs ink 22 px on a 24 px pitch; jiskan inks the full
+        # 24 px, so a 26 px pitch keeps the same 2 px gap. Top margin as original.
+        size, pitch_x, pitch_y, top = 24, 32, 26, 5
         assert len(cols) * pitch_x <= w + 8, f'{len(cols)} columns do not fit {w}px'
         x0 = w - (w - len(cols) * pitch_x) // 2 - pitch_x + (pitch_x - size) // 2
         cells = []
         for i, col in enumerate(cols):
-            assert len(col) * pitch_y <= h, f'column too long for {h}px: {col}'
-            cells += [(x0 - i * pitch_x, j * pitch_y, ch) for j, ch in enumerate(col)]
+            assert top + (len(col) - 1) * pitch_y + size <= h, f'column too long for {h}px: {col}'
+            cells += [(x0 - i * pitch_x, top + j * pitch_y, ch) for j, ch in enumerate(col)]
         return cells, size
     (col,) = cols
     size = min(w - 4, h // len(col))
@@ -92,20 +143,27 @@ def colorize(style: str, cov: list[int], w: int, h: int, orig: bytes) -> bytes:
     ranked = [i for i, _ in Counter(v for v in orig if v).most_common()]
     on = [c >= 72 for c in cov]
     if style == 'narr':
-        # original: thin white strokes (index 7) inside a pink rim (index 14)
+        # original: white strokes (index 7) inside a 2 px dark rim (index 14)
+        # with clipped corners
         fill, rim = 7, 14
+        ring = [(dx, dy) for dy in range(-2, 3) for dx in range(-2, 3) if abs(dx) + abs(dy) < 4]
         out = bytearray(w * h)
         for y in range(h):
             for x in range(w):
                 i = y * w + x
                 if on[i]:
                     out[i] = fill
-                elif any(on[yy * w + xx] for yy in range(max(0, y - 1), min(h, y + 2))
-                         for xx in range(max(0, x - 1), min(w, x + 2))):
+                elif any(0 <= x + dx < w and 0 <= y + dy < h and on[(y + dy) * w + x + dx]
+                         for dx, dy in ring):
                     out[i] = rim
         return bytes(out)
-    main = ranked[0]
-    edge = ranked[1] if len(ranked) > 1 else main
+    # the core colour is the one enclosed by ink, not the most frequent one
+    # (Opendat 14-17 have more edge pixels than core pixels)
+    def enclosed(v: int) -> float:
+        inner = [all(orig[(y + dy) * w + x + dx] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)))
+                 for y in range(1, h - 1) for x in range(1, w - 1) if orig[y * w + x] == v]
+        return sum(inner) / max(len(inner), 1)
+    main, edge = sorted(ranked[:2], key=enclosed, reverse=True) if len(ranked) > 1 else ranked * 2
     return bytes(main if c >= 112 else edge if c >= 48 else 0 for c in cov)
 
 
@@ -123,7 +181,10 @@ def main(argv: list[str]) -> None:
             c = chunks[int(r['chunk'])]
             orig = npk.decode(c)
             cells, size = layout(r['style'], r['text'], c.width, c.height)
-            cov = render(cells, c.width, c.height, FONT[r['style']], size)
+            if r['style'] == 'narr':
+                cov = render_bitmap(cells, c.width, c.height)
+            else:
+                cov = render(cells, c.width, c.height, BRUSH_FONT, size)
             px = colorize(r['style'], cov, c.width, c.height, orig)
             new = npk.build_chunk(c.width, c.height, px, c.palette, c.planes, (c.canvas_w, c.canvas_h))
             room = c.size - len(c.trailer)

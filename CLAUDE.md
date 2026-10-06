@@ -92,4 +92,4 @@ python3 tools/saves.py library | reset | import NAME SLOT | export SLOT NAME
 - Python 3.14 系統裝的；本專案目前**沒有 `.venv/`**。工具都是純 Python 標準庫，不需要額外套件。
 - `dosbox-x` 要可以在 `PATH` 上找到（Homebrew `/usr/local/bin/dosbox-x`）。
 - `ffmpeg` 需要（截影片的 frame）。
-- `tools/textimg.py` 需要 ImageMagick（`magick`）與思源宋體（`~/Library/Fonts` 或 `/Library/Fonts`）、macOS 楷體（系統可下載字型，在 `/System/Library/AssetsV2` 下，路徑因機器而異）；`FONT` 用 glob 自動找，找不到會直接報錯。
+- `tools/textimg.py` 的旁白用 repo 內的 jiskan 點陣字（`tools/fonts/`，純標準庫讀 BDF）；書法需要 ImageMagick（`magick`）與 macOS 楷體（系統可下載字型，在 `/System/Library/AssetsV2` 下，路徑因機器而異，用 glob 自動找，找不到會直接報錯）。
