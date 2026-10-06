@@ -21,11 +21,16 @@ images.tsv columns: file, chunk, style, text.
   style  narr     vertical narration (white fill, 2 px outline), 24 px bitmap
                   glyphs on a 26 px pitch, 32 px columns
          brush    calligraphy in Kaiti, one column, glyphs spread over the height
+         glyphs   one image per glyph from translation/calligraphy/<file>/
+                  (`<chunk>-<pos>-<char>[_...].png`, black on white), sized and
+                  offset by layout.json there (tools/calligraphy_editor.py);
+                  white core inside a 1 px dark rim, as the original
   text   columns separated by "/", laid out right to left
 """
 from __future__ import annotations
 
 import csv
+import json
 import functools
 import gzip
 import subprocess
@@ -72,6 +77,46 @@ def render(chars: list[tuple[int, int, str]], w: int, h: int, font: Path, size: 
 
 
 @functools.cache
+def glyph_cells(folder: Path, chunk: int, text: str, w: int, h: int) -> list[tuple[int, int, Path, int, int]]:
+    """(x, y, image, width, height) per glyph; same layout as calligraphy_editor.py.
+
+    A glyph's scale is a percentage of the base width (the column width less
+    4 px, or a fixed width); the column is shrunk as a whole only if it would
+    overflow. Glyphs are spread down the column with equal gaps, centred, then
+    moved by (dx, dy) but kept inside the column.
+    """
+    params = json.loads((folder / 'layout.json').read_text()) if (folder / 'layout.json').exists() else {}
+    base_w = w - 4 if params.get('base', 'column') == 'column' else int(params['base'])
+    files, rel, dims, moves = [], [], [], []
+    for k, ch in enumerate(text, 1):
+        (f,) = folder.glob(f'{chunk}-{k}-*.png')
+        p = params.get('glyphs', {}).get(f'{chunk}-{k}', {})
+        files.append(f)
+        rel.append(p.get('scale', 50 if ch == '之' else 100) / 100)
+        moves.append((p.get('dx', 0), p.get('dy', 0)))
+        dims.append(tuple(map(int, subprocess.run(['magick', 'identify', '-format', '%w %h', str(f)],
+                                                  check=True, capture_output=True, text=True).stdout.split())))
+    base = min(base_w, h * 0.97 / sum(r * gh / gw for r, (gw, gh) in zip(rel, dims)))
+    boxes = [(int(base * r), int(base * r * gh / gw)) for r, (gw, gh) in zip(rel, dims)]
+    gap = (h - sum(bh for _, bh in boxes)) / len(boxes)
+    cells, y = [], gap / 2
+    for f, (bw, bh), (dx, dy) in zip(files, boxes, moves):
+        x0, y0 = (w - bw) // 2, int(y)
+        cells.append((min(max(x0 + dx, 0), max(w - bw, 0)), min(max(y0 + dy, 0), max(h - bh, 0)), f, bw, bh))
+        y += bh + gap
+    return cells
+
+
+def render_glyphs(cells: list[tuple[int, int, Path, int, int]], w: int, h: int) -> list[int]:
+    """Draw glyph images (black on white) into their boxes; return 0..255 coverage."""
+    cmd = ['magick', '-size', f'{w * SS}x{h * SS}', 'xc:black']
+    for x, y, f, bw, bh in cells:
+        cmd += ['(', str(f), '-colorspace', 'gray', '-negate', '-resize', f'{bw * SS}x{bh * SS}!', ')',
+                '-geometry', f'+{x * SS}+{y * SS}', '-compose', 'lighten', '-composite']
+    cmd += ['-filter', 'box', '-resize', f'{w}x{h}!', '-colorspace', 'gray', '-depth', '8', 'gray:-']
+    return list(subprocess.run(cmd, check=True, capture_output=True).stdout)
+
+
 def load_bdf(path: Path) -> dict[int, list[int]]:
     """24x24 BDF glyphs as {codepoint: 24 row bitmasks, bit 23 = leftmost}."""
     glyphs, cp, rows = {}, None, None
@@ -164,6 +209,19 @@ def colorize(style: str, cov: list[int], w: int, h: int, orig: bytes) -> bytes:
                  for y in range(1, h - 1) for x in range(1, w - 1) if orig[y * w + x] == v]
         return sum(inner) / max(len(inner), 1)
     main, edge = sorted(ranked[:2], key=enclosed, reverse=True) if len(ranked) > 1 else ranked * 2
+    if style == 'glyphs':
+        # like the original: the core always sits inside a 1 px ring of the edge colour
+        core = [c >= 112 for c in cov]
+        out = bytearray(w * h)
+        for y in range(h):
+            for x in range(w):
+                i = y * w + x
+                if core[i]:
+                    out[i] = main
+                elif any(0 <= x + dx < w and 0 <= y + dy < h and core[(y + dy) * w + x + dx]
+                         for dx in (-1, 0, 1) for dy in (-1, 0, 1)):
+                    out[i] = edge
+        return bytes(out)
     return bytes(main if c >= 112 else edge if c >= 48 else 0 for c in cov)
 
 
@@ -180,11 +238,15 @@ def main(argv: list[str]) -> None:
         for r in (r for r in rows if r['file'] == name):
             c = chunks[int(r['chunk'])]
             orig = npk.decode(c)
-            cells, size = layout(r['style'], r['text'], c.width, c.height)
-            if r['style'] == 'narr':
-                cov = render_bitmap(cells, c.width, c.height)
+            if r['style'] == 'glyphs':
+                folder = ROOT / 'translation/calligraphy' / Path(name).stem.lower()
+                cov = render_glyphs(glyph_cells(folder, c.index, r['text'], c.width, c.height), c.width, c.height)
             else:
-                cov = render(cells, c.width, c.height, BRUSH_FONT, size)
+                cells, size = layout(r['style'], r['text'], c.width, c.height)
+                if r['style'] == 'narr':
+                    cov = render_bitmap(cells, c.width, c.height)
+                else:
+                    cov = render(cells, c.width, c.height, BRUSH_FONT, size)
             px = colorize(r['style'], cov, c.width, c.height, orig)
             new = npk.build_chunk(c.width, c.height, px, c.palette, c.planes, (c.canvas_w, c.canvas_h))
             room = c.size - len(c.trailer)

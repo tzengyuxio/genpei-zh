@@ -42,6 +42,7 @@
 | `tools/dosbox/newgame.mouse` | 滑鼠腳本：片頭 → 新遊戲 → 1180 年 → 源頼朝 → 開局對話 |
 | `tools/dosbox/kakai.mouse` | 滑鼠腳本：讀存檔欄 1 → 外交 → 歌會 → 吟歌（約 100 秒） |
 | `tools/textimg.py` | 片頭／片尾文字圖：依 `translation/images.tsv` 重繪 → NPK016 壓縮 → 原位寫回 Opendat/Enddat.gp |
+| `tools/calligraphy_editor.py` | 產生 `build/calligraphy-editor.html`：調整片頭法帖字的大小與位置，即時顯示壓縮大小，匯出 `layout.json` |
 | `tools/saves.py` | Savedata.gp 存檔欄 ↔ `build/saves/*.slot` 快照庫（list/library/export/import/reset） |
 
 ## 建置與驗證（目前是手動步驟）
@@ -176,6 +177,7 @@ python3 tools/saves.py export N 新快照名            # 欄 N → 快照
 | 2026-10-06 | 和歌定案為上下句各一句七言 |
 | 2026-10-06 | 片頭／片尾的文字圖也譯：旁白用思源宋體，書法用楷體，照原圖的色號與格局重繪；標題「源平合戦」保留不改 |
 | 2026-10-06 | 旁白改用 jiskan 24 點陣明朝體、字距 26 px、外框 2 px。輪廓字（思源宋體、游明朝等）縮到 24 px 筆畫粗細不一或糊在一起；原版本身就是 24 點陣字。譯文每欄可比原文少 0～2 字以放進版面 |
+| 2026-10-06 | 片頭平家物語改用古代法帖的字圖（逐字挑選，記出處於檔名），大小與位置用 `tools/calligraphy_editor.py` 調整後存 `layout.json`；外圍補 1 px 深藍邊。片尾書法維持楷體 |
 | 2026-10-06 | 實機驗證改用存檔快照（`tools/saves.py`）。DOSBox-X 的 save state 只能用熱鍵讀取，沒有命令列參數可以在啟動時載入，所以不採用 |
 
 ## 下一步
