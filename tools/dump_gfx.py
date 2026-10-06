@@ -166,6 +166,12 @@ def dump_npk(category: str, name: str, palname: str = "Mainpal[0]",
     return out
 
 
+# palettes confirmed by eye where the guess is wrong: (file, chunk) -> prefix index.
+# Enddat 72-77 (ending scroll) are dark ink with 5 lighter edge shades; set 10
+# is the only ink-to-paper ramp (14 darkest ... 8 lightest).
+KNOWN_PALETTES = {("Enddat.gp", i): 10 for i in range(72, 78)}
+
+
 def dump_npk_prefix_pal(category: str, name: str) -> None:
     """Opendat/Enddat: 48-byte palettes before the first chunk."""
     data = read(name)
@@ -174,8 +180,11 @@ def dump_npk_prefix_pal(category: str, name: str) -> None:
     d = Dump(category, Path(name).stem)
     for c in npk.scan_archive(data):
         px = npk.decode(c)
-        i = pick_palette(px, c.width, c.height, pals)
-        note = "palette is a best guess"
+        i = KNOWN_PALETTES.get((name, c.index))
+        note = "palette chosen by eye"
+        if i is None:
+            i = pick_palette(px, c.width, c.height, pals)
+            note = "palette is a best guess"
         if len(c.trailer) == 8:
             x, y, w, h = struct.unpack("<4H", c.trailer)
             note += f"; next chunk placed at ({x},{y}) {w}x{h}"

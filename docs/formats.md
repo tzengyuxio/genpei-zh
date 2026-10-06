@@ -647,7 +647,7 @@ else:          # literal，再讀 b2
 | `Opendat.gp` prefix | 41 | 片頭；含色 8–15 輪轉（水波、火焰動畫）與淡入淡出的各階段 |
 | `Enddat.gp` prefix | 14 | 片尾 |
 
-dump 的選色：Main 系列用 Mainpal 第 0 組（世界地圖與 Hkeshiki 另外四季各出一張）。**Opendat/Enddat 每張圖用哪組色盤由 Open/End.exe 的程式決定，尚未解出**；dump 以啟發式挑選（先挑點亮最多 pixel 的組，再挑相鄰 pixel 亮度差最小者），`index.tsv` 記下挑到的組號，**屬猜測**，例如片頭清盛臉（chunk 8–11）應是火焰色盤，啟發式選成綠色調。
+dump 的選色：Main 系列用 Mainpal 第 0 組（世界地圖與 Hkeshiki 另外四季各出一張）。**Opendat/Enddat 每張圖用哪組色盤由 Open/End.exe 的程式決定，尚未解出**；dump 以啟發式挑選（先挑點亮最多 pixel 的組，再挑相鄰 pixel 亮度差最小者），`index.tsv` 記下挑到的組號，**屬猜測**，例如片頭清盛臉（chunk 8–11）應是火焰色盤，啟發式選成綠色調。已目視確認的組號寫在 `dump_gfx.py` 的 `KNOWN_PALETTES`，優先於啟發式：Enddat 72–77（片尾卷軸）是第 10 組。這幾張是深色墨（色 14）加 5 階較淺的邊緣（11、15、9、12、8，由深到淺），第 10 組是唯一一條由墨色漸到紙色的色階；啟發式原本選第 12、8 組，字幾乎看不見。第 1–8 組只有 1–3 色亮，依序輪流，像是調色盤動畫，用途未確認。
 
 ### 10.3 頭像
 
