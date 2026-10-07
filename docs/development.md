@@ -45,6 +45,7 @@
 | `tools/textimg.py` | 片頭／片尾文字圖：依 `translation/images.tsv` 重繪 → NPK016 壓縮 → 原位寫回 Opendat/Enddat.gp |
 | `tools/calligraphy_editor.py` | 產生法帖字的排版網頁：片頭 `build/calligraphy-editor.html`（即時顯示壓縮大小）、滅亡畫面 `--target maincmd2`、片尾詩句與卷軸 `--target enddat`（`build/calligraphy-editor-<target>.html`）；調整大小、位置、字距，平均或依欄高百分比分配字距，匯出 `layout.json` |
 | `tools/mob_kao_explorer.py` | 產生 `build/mob-kao-explorer.html`：大眾臉（Montage 組合頭像）探索器，選類型／頭／身／眼／口／背景即時組出 64×80 頭像與頭像碼，列出使用該碼與相同部件的武將（沿用 `dump_gfx.py` 的組法，310 人逐 pixel 相同；需先跑 `dump_data.py`）。發布版放在 fc-sangokushi repo 的 Pages：<https://tzengyuxio.github.io/fc-sangokushi/genpei-mob-kao-explorer.html>（手動複製 `docs/genpei-mob-kao-explorer.html`）；跨遊戲整合規劃見 `docs/backlog/mob-kao-explorer-integration.md` |
+| `tools/endview.py` | 不必破關就能看片尾：複製 `build/GENPEI` 到暫存目錄，把 Open.exe／Main.exe 換成 13 bytes 的 COM（經 INT 65h 存入勝者種別後以代碼 0 結束），再由原版 Genpei.com 接著執行 End.exe；`genji`／`heike`／`other` 三種結局，`--record 秒數` 錄影（formats.md §5.3） |
 | `tools/saves.py` | Savedata.gp 存檔欄 ↔ `build/saves/*.slot` 快照庫（list/library/export/import/reset） |
 
 ## 建置與驗證（目前是手動步驟）
@@ -158,7 +159,7 @@ tools/web.sh serve    # 同上，再開 http://localhost:8000/
     - 水平參照不退到行首之前；
     - 不參照圖的起點之前。
     （`tools/npk.py` 的 `pack()`）
-18. **End.exe 從 `A:ENDDAT.GP` 讀檔**（硬碟化只改了 Main.exe），而且要先載入 FMDRV.COM、GRPDRV.EXE。單獨測片尾的做法：`build/GENPEI/ENDTEST.BAT` 先 `mount a <build/GENPEI>`，再執行這三支程式，用 `GENPEI_START=ENDTEST.BAT tools/dosbox/run.sh 120` 啟動。播完第一段旁白後畫面會變淺灰並停住（原版也一樣），之後的毛筆字要從真正的結局才看得到。
+18. **End.exe 從 `A:ENDDAT.GP` 讀檔**（硬碟化只改了 Main.exe），而且要先載入 FMDRV.COM、GRPDRV.EXE。**End.exe 不讀 Savedata.gp**，唯一的輸入是 Genpei.com 的 INT 65h 服務裡、Main.exe 存的「勝者勢力種別」（0 源氏、1 平氏、2 其他；formats.md §5.3）。單獨執行 End.exe 時沒有 INT 65h，播完第一段旁白就變淺灰停住。看完整片尾用 `python3 tools/endview.py genji|heike|other [--record 180]`（約 170 秒播完，之後停在 KOEI 標誌等按鍵）。實測片尾卷軸（Enddat 72–77）會出現；**Enddat 66–71（含 68–71 平家物語詩句）End.exe 完全沒有引用，片尾不會顯示**（推測是不用的殘留）。
 
 ## 踩過的坑與經驗
 
@@ -209,7 +210,7 @@ tools/web.sh serve    # 同上，再開 http://localhost:8000/
    - Message.gp 待確認的參數語序：0-115、0-526～529、3-032 的 `%W1`。
    - Main.exe 待確認的片段組合：40「結束」、304／305 的攻打通知（266～268 存讀檔句型已確認）。
    - 未譯的兩筆：246「蛇」、450「受け」。
-   - 片尾的毛筆字（Enddat 68～77）。
+   - 片尾的毛筆字：卷軸 Enddat 72～77 已用 `tools/endview.py` 實機確認；68～71 End.exe 不會顯示。
 2. 移植 kami-zh 的 `jis.py`（全 TSV 缺字掃描＋替代建議）與 `consistency.py`（變體混用、同原文多譯、與 glossary 不一致）。
 3. 寫 `install.py`：把上面「建置與驗證」的手動步驟變成一鍵。
 4. 其他含日文的圖（Logo「歴史シミュレーションゲーム」、Mainstl 月名、Maincmd「統治」「行軍」（指令按鈕都是漢字，不翻））視需要再譯。

@@ -354,6 +354,8 @@ python3 tools/message.py apply   game/GENPEI/Message.gp translation/message.tsv 
 
 每格 43,403 bytes：0x69 bytes 檔頭（+0 u16 年、+2 u8 月、+13 棟梁名；+0x13 起是類似劇本檔頭的一份），之後是同格式的資料，但順序不同：武將 400 × 71 在 +0x69，勢力之後多出約 2 KB 執行期資料（疑為軍團），據點在資料 +0x7846、地方 +0x83DA、官位 +0x8422、名物 +0x9722。比對劇本與存檔可以分出靜態欄位（能力值、特技）與執行期欄位（+0x21 bit7、+0x40–0x46、據點 +0x46 bit4）。
 
+End.exe 不讀存檔：片尾分支只看 Main.exe 經 INT 65h 交給它的勝者勢力種別（§5.3.1），改存檔無法切換結局。
+
 ### 4.6 戰略地圖與合戰地圖
 
 戰略地圖不是格子，而是**節點圖**：據點與道路上的小圓點都是節點，部隊沿節點移動。表都在 Main.exe（解包後）的 DGROUP：
@@ -466,6 +468,40 @@ UI 字串以 NUL 結尾，多數經由**指標陣列**引用（不是 `push imm1
 ### 5.3 End.exe（結尾程式，92,121 bytes）
 
 - 實測（DGROUP = 檔案 0x14DB0 之後）：41 條、約 200 字，大多與 Open.exe 相同的磁片／環境設定訊息（片尾 staff roll 是 Enddat.gp 的圖，不是文字）。
+
+#### 5.3.1 結局分支與 INT 65h
+
+End.exe 是普通的 MSC C/C++ x86 程式（未壓縮，不是 KOEI bytecode）。MZ header 0x1600 bytes，DGROUP 段 0x137B（檔案 0x14DB0），以下位址是「檔案位置 − 0x1600」。
+
+**它不讀 Savedata.gp。** DGROUP 0x236 有一張檔名表（0 `A:SAVEDATA.GP`、1–5 `DISK-n.GP`、6 `A:GEN.DIR`），只被換片檢查程式（0x3D06／0x3D58）用到，而實際呼叫的只有索引 6（GEN.DIR）。Enddat／Logo／Edmusic 是直接 `push` 字串位址開檔。
+
+**唯一的輸入是 Genpei.com 的 INT 65h 服務。** Genpei.com 執行子程式前把 INT 65h 掛到自己（0x762），結束時還原：
+
+| AH | 功能 |
+|---|---|
+| 0 | 回傳 AX＝cs:[0x53B]（初值 1） |
+| 1 | 從 CX:BX 複製 21 bytes 到 cs:0x5F3 |
+| 2 | 回傳 CX:BX＝cs:0x5F3 |
+| 3–8 | 六個 word 槽（cs:0x630 起）：AL＝0 存入 BX，AL≠0 回傳到 AX |
+
+- **Main.exe**（解包後檔案 0x10526）只呼叫一次：`AX=0600h, BX=勝者種別`，種別由勢力 record +0x02 決定：0 源氏→0、1 平氏→1、其他（藤原氏、豪族）→2。之後 Main.exe 以結束碼 0 離開，Genpei.com 才執行 END.EXE（Genpei.com 0x6CF：`AH=4Dh` 取結束碼，0 → END.EXE，2 → 另一路徑）。
+- **End.exe** 0x8444：`AX=0601h; INT 65h`，取 AL 當結局編號（0x065CA–0x065EE 另有 AH=3／4／5 的寫入函式，未見呼叫）。單獨執行時 INT 65h 沒有人處理（推測向量是空的或指向無效位址），所以片尾在第一次讀這個值的地方（第一段旁白之後）停住、畫面淺灰。
+
+**片尾流程**（0xA392 起依序呼叫；chunk 編號是 Enddat.gp 的 NPK016 順序）：
+
+| 位址 | 內容 | 依結局變化 |
+|---|---|---|
+| 0x8856 | 開場、第一段旁白（78–83，表在 DGROUP 0x470）、9 | 否 |
+| 0x8E86 | 未細查（錄影中此段是宮門前群臣與直書旁白） | 否 |
+| 0x9916 | 依結局分派：0→0x918A（chunk 2、3、14、15）、1→0x8E96（0、1、11–13）、2→0x9598（4、5、19–21） | 是 |
+| 0x9F9E | 0x9960 依結局選 52／53／54（DGROUP 0x546 offset 表）；55；0x9D90 卷軸 72–77（DGROUP 0x5AC）與琵琶法師 55–57 | 只有開頭一張 |
+| 0x9FAE | 依結局選尾聲 CG：0 → 24／25（紅葉）、1 → 28／29（海上社殿夕照，推測嚴島）、2 → 26／27（雪景，推測平泉）；DGROUP 0x5D0 起是色盤位置、offset、大小表 | 是 |
+| 0xA0EA | KOEI 標誌（Logo.gp） | 否 |
+| 0xAF10 | 等按鍵 | |
+
+所以**結局只有 3 種**（依勝者的勢力種別，與棟梁個人無關），卷軸書法三種都相同。**Enddat 6–8、22、23、66–71（含 68–71 的平家物語四欄詩句）在 End.exe 裡沒有任何 u32 表或立即值引用**，三種結局的錄影也都沒出現，推測是不用的殘留（滅亡畫面的同一段詩句用的是 Maincmd2，不是 Enddat）。
+
+**不破關看片尾**：`tools/endview.py` 把測試目錄裡的 Open.exe 與 Main.exe 換成 13 bytes 的 COM（`mov ax,0600h / mov bx,n / int 65h / mov ax,4C00h / int 21h`），由原版 Genpei.com 依序執行：FMDRV → GRPDRV → 假 Open（結束碼 0）→ 假 Main（存入結局編號、結束碼 0）→ End.exe。DOS 依 MZ 簽章而非副檔名判斷，所以 `.EXE` 名稱的 COM 也能執行。測試目錄掛成 A:（End.exe 讀 `A:ENDDAT.GP`）。實測三種結局都播到 KOEI 標誌，全長約 170 秒。
 
 ### 5.4 檔名／路徑字串（Open.exe + Main.exe 都有）
 
