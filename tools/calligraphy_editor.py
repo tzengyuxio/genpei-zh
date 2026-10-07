@@ -18,10 +18,13 @@ opendat   the opening 平家物語 (Opendat.gp chunks 14-17); shows each chunk's
 maincmd2  the defeat screen (Maincmd2.gp, four uncompressed 48x358
           columns); the background is the folding-screen painting from the
           game file in the colours of the last frame.
-enddat    the ending verses (Enddat 68-71, core and rim) and scroll (72-77,
-          ink shades on paper, style `ink`); shows compressed sizes. Where
-          End.exe puts these chunks is not decoded, so they are laid out
-          side by side on a black screen.
+enddat    the ending verses (Enddat 68-71, core and rim; End.exe never shows
+          them) and scroll (72-77, ink shades on paper, style `ink`); shows
+          compressed sizes. 72-74 and then 75-77 are written on the same
+          three columns of the scroll, so the editing screen holds two
+          copies of it side by side; 68-71 are hidden. FRAME.png should be a capture of the
+          empty scroll (tools/endview.py, about frame 7380 of a recording);
+          without it the scroll is plain paper.
 
 The page embeds game graphics, so it lives in build/ and is not committed.
 """
@@ -45,9 +48,15 @@ ROOT = Path(__file__).resolve().parent.parent
 # Maincmd2.gp columns, right to left: game-area (x, y) of each 48x358 column (formats.md §10.6)
 MAINCMD2_COLUMNS = [(416, 24), (336, 38), (256, 28), (176, 34)]
 # colours of the painting on the last frame of the defeat screen (Losepal fade end)
-# Enddat chunk -> (x, y) on the editing screen (stand-ins; End.exe places them)
-ENDDAT_PLACES = {68: (560, 16), 69: (496, 16), 70: (432, 16), 71: (368, 16),
-                 72: (280, 40), 73: (240, 40), 74: (200, 40), 75: (160, 40), 76: (120, 40), 77: (80, 40)}
+# Enddat scroll columns in the game area (measured on an ending recording): 72-74,
+# then 75-77, at x = 528, 464, 400, y = 48. The editing screen holds two copies
+# of the scroll (game x 290-640): 72-74 on the right, 75-77 on the left.
+# 68-71 are never shown by End.exe, so the editor hides them.
+SCROLL_X, SCROLL_W = 290, 350
+ENDDAT_W, SCROLL_A, SCROLL_B = 2 * SCROLL_W + 20, SCROLL_W + 20, 0
+ENDDAT_PLACES = {72: (SCROLL_A + 528 - SCROLL_X, 48), 73: (SCROLL_A + 464 - SCROLL_X, 48),
+                 74: (SCROLL_A + 400 - SCROLL_X, 48), 75: (SCROLL_B + 528 - SCROLL_X, 48),
+                 76: (SCROLL_B + 464 - SCROLL_X, 48), 77: (SCROLL_B + 400 - SCROLL_X, 48)}
 MAINCMD2_PAL = ['000000', '102092', '8261a2', '301041', '003030', '3041b2', '925182', 'a2d3e3',
                 '715192', '612061', '714161', '512030', '713061', '714192', '000030', '612041']
 
@@ -96,10 +105,11 @@ def collect(target: str) -> dict:
         for i, glyphs in sorted(lines.items()):
             c = chunks[i]
             npk.decode(c)
-            x, y = ENDDAT_PLACES[i]
+            x, y = ENDDAT_PLACES.get(i, (0, 0))
             out.append({'chunk': i, 'x': x, 'y': y, 'w': c.width, 'h': c.height, 'style': styles[i],
+                        'hidden': i not in ENDDAT_PLACES,
                         'room': c.size - len(c.trailer), 'glyphs': glyphs})
-        return {'unit': '張', 'core': 'a2d3e3', 'rim': '000030', 'paper': 'e8d8b8',
+        return {'unit': '張', 'core': 'a2d3e3', 'rim': '000030', 'paper': 'e8d8b8', 'sw': ENDDAT_W,
                 'ink': [bytes(pal[k]).hex() for k in textimg.INK_RAMP], 'levels': textimg.INK_LEVELS,
                 'chunks': out}
     chunks = npk.scan_archive((ROOT / 'game/GENPEI/Opendat.gp').read_bytes())
@@ -145,7 +155,7 @@ h3 { margin: 12px 0 4px; }
 <div id="stage"><canvas id="screen" width="640" height="400"></canvas><canvas id="overlay" width="640" height="400"></canvas></div>
 <aside>
   <div class="bar">
-    <label>顯示倍率 <select id="zoom"><option>1.5</option><option selected>2</option><option>3</option><option>4</option></select></label>
+    <label>顯示倍率 <select id="zoom"><option>1</option><option>1.5</option><option selected>2</option><option>3</option><option>4</option></select></label>
     <label>100% 基準 <select id="base"><option value="column">各欄寬度</option><option value="36">統一 36 px</option><option value="40">統一 40 px</option></select></label>
     <label><input type="checkbox" id="boxes" checked> 顯示框線</label>
   </div>
@@ -159,6 +169,8 @@ h3 { margin: 12px 0 4px; }
 </aside></main>
 <script>
 const D = __DATA__;
+// hidden chunks keep their layout.json entries but are not shown or edited
+const SHOWN = D.chunks.filter(c => !c.hidden);
 const INIT = __INIT__;
 // unsaved edits survive a reload, unless layout.json changed since they were made
 const STORE = 'genpei-calligraphy-__TARGET__', INIT_TEXT = JSON.stringify(INIT);
@@ -173,8 +185,8 @@ let P = load();                 // { base, glyphs: { "14-1": {scale, dx, gap} } 
 let sel = null, drag = null, layoutCache = {}, pixels = {};
 // show only the area around the columns
 const V = (() => {
-  const x0 = Math.max(0, Math.min(...D.chunks.map(c => c.x)) - 24), x1 = Math.min(640, Math.max(...D.chunks.map(c => c.x + c.w)) + 24);
-  const y0 = Math.max(0, Math.min(...D.chunks.map(c => c.y)) - 16), y1 = Math.min(400, Math.max(...D.chunks.map(c => c.y + c.h)) + 16);
+  const x0 = D.sw && D.bg ? 0 : Math.max(0, Math.min(...SHOWN.map(c => c.x)) - 24), x1 = D.sw && D.bg ? D.sw : Math.min(D.sw || 640, Math.max(...SHOWN.map(c => c.x + c.w)) + 24);   // wide screen with a backdrop: show all of it
+  const y0 = D.sw && D.bg ? 0 : Math.max(0, Math.min(...SHOWN.map(c => c.y)) - 16), y1 = D.sw && D.bg ? 400 : Math.min(400, Math.max(...SHOWN.map(c => c.y + c.h)) + 16);
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 })();
 screen.width = V.w; screen.height = V.h;
@@ -358,11 +370,11 @@ function paint() {
   sctx.fillStyle = '#000'; sctx.fillRect(0, 0, V.w, V.h);
   if (bgImg && bgImg.complete) sctx.drawImage(bgImg, -V.x, -V.y);
   const id = sctx.getImageData(0, 0, V.w, V.h);
-  for (const c of D.chunks) {
+  for (const c of SHOWN) {
     const px = pixels[c.chunk]; if (!px) continue;
     const ink = c.style === 'ink';
     for (let y = 0; y < c.h; y++) for (let x = 0; x < c.w; x++) {
-      const v = px[y * c.w + x]; if (!v && !ink) continue;
+      const v = px[y * c.w + x]; if (!v && (!ink || bgImg)) continue;   // ink: plain paper only without a backdrop
       const col = ink ? (v ? INK[v - 1] : PAPER) : v === 7 ? C7 : C6, o = ((c.y + y - V.y) * V.w + c.x + x - V.x) * 4;
       id.data[o] = col[0]; id.data[o + 1] = col[1]; id.data[o + 2] = col[2];
     }
@@ -374,7 +386,7 @@ function drawOverlay() {
   const z = +document.getElementById('zoom').value;
   octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, overlay.width, overlay.height); octx.setTransform(z, 0, 0, z, -V.x * z, -V.y * z);
   octx.lineWidth = 1 / z;
-  for (const c of D.chunks) {
+  for (const c of SHOWN) {
     const light = c.style === 'ink';   // paper background: dark lines
     if (document.getElementById('boxes').checked) { octx.strokeStyle = light ? 'rgba(0,0,0,.45)' : 'rgba(255,255,255,.35)'; octx.setLineDash([4 / z, 4 / z]); octx.strokeRect(c.x, c.y, c.w, c.h); octx.setLineDash([]); }
     for (const k of layoutCache[c.chunk] || []) {
@@ -390,7 +402,7 @@ function drawOverlay() {
     }
   }
 }
-function renderAll() { for (const c of D.chunks) renderChunk(c); paint(); syncInputs(); save(); }
+function renderAll() { for (const c of SHOWN) renderChunk(c); paint(); syncInputs(); save(); }
 function renderOne(key) { renderChunk(D.chunks.find(c => c.glyphs.some(g => g.key === key))); paint(); syncInputs(); save(); }
 
 function resize() {
@@ -401,7 +413,7 @@ function resize() {
 
 function buildTables() {
   const box = document.getElementById('tables');
-  for (const c of D.chunks) {
+  for (const c of SHOWN) {
     const t = document.createElement('table');
     t.innerHTML = `<tr><th colspan="2">第 ${c.chunk} ${D.unit}（${c.w}×${c.h}）</th><th colspan="4"><span class="size" id="size-${c.chunk}"></span></th></tr>
       <tr><td colspan="6"><button data-even="${c.chunk}">平均字距</button> <button data-span="${c.chunk}">依分配高度</button> <input type="number" data-pct="${c.chunk}" min="10" max="100" step="5" title="這一欄的分配高度；空白＝預設"> %</td></tr>
@@ -446,7 +458,7 @@ function select(key) { sel = key; syncInputs(); drawOverlay(); }
 
 function hit(ev) {
   const r = overlay.getBoundingClientRect(), gx = V.x + (ev.clientX - r.left) * V.w / r.width, gy = V.y + (ev.clientY - r.top) * V.h / r.height;
-  for (const c of D.chunks) for (const k of layoutCache[c.chunk] || [])
+  for (const c of SHOWN) for (const k of layoutCache[c.chunk] || [])
     if (gx >= c.x + k.x && gx < c.x + k.x + k.bw && gy >= c.y + k.y && gy < c.y + k.y + k.bh) return { key: k.g.key, gx, gy };
   return { key: null, gx, gy };
 }
@@ -476,8 +488,8 @@ window.addEventListener('keydown', e => {
 
 const pct = () => Math.min(100, Math.max(10, +document.getElementById('pct').value || 80));
 const colPct = c => Math.min(100, Math.max(10, P.spans[c.chunk] ?? pct()));
-document.getElementById('even-all').addEventListener('click', () => { D.chunks.forEach(evenGaps); renderAll(); });
-document.getElementById('span-all').addEventListener('click', () => { D.chunks.forEach(c => spanGaps(c, colPct(c))); renderAll(); });
+document.getElementById('even-all').addEventListener('click', () => { SHOWN.forEach(evenGaps); renderAll(); });
+document.getElementById('span-all').addEventListener('click', () => { SHOWN.forEach(c => spanGaps(c, colPct(c))); renderAll(); });
 document.getElementById('pct').addEventListener('input', syncInputs);
 document.getElementById('zoom').addEventListener('change', resize);
 document.getElementById('boxes').addEventListener('change', drawOverlay);
@@ -495,6 +507,7 @@ document.getElementById('load').addEventListener('click', () => {
 });
 document.getElementById('reset').addEventListener('click', () => { if (confirm('全部回到預設？')) { P = defaults(); document.getElementById('base').value = P.base; renderAll(); } });
 
+if (D.sw) document.getElementById('zoom').value = '1';   // the wide ending screen opens at 1x
 buildTables(); document.getElementById('base').value = P.base; resize(); renderAll();
 </script></body></html>
 '''
@@ -510,7 +523,13 @@ def main() -> None:
                   else f'build/calligraphy-editor-{args.target}.html')
     data = collect(args.target)
     out.parent.mkdir(exist_ok=True)
-    if args.bg:
+    if args.bg and args.target == 'enddat':
+        data['bg'] = png_url(['-size', f'{ENDDAT_W}x400', 'xc:black',
+                              '(', str(args.bg), '-crop', f'{SCROLL_W}x400+{SCROLL_X}+40', '+repage', ')',
+                              '-geometry', f'+{SCROLL_A}+0', '-composite',
+                              '(', str(args.bg), '-crop', f'{SCROLL_W}x400+{SCROLL_X}+40', '+repage', ')',
+                              '-geometry', f'+{SCROLL_B}+0', '-composite'])
+    elif args.bg:
         data['bg'] = png_url([str(args.bg), '-crop', '640x400+0+40', '+repage'])
     elif args.target == 'maincmd2':
         bg = out.parent / 'maincmd2-bg.png'
