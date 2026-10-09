@@ -4,6 +4,12 @@
 
 姊妹作：[kami-zh](https://github.com/tzengyuxio/kami-zh)（《神々の大地》）已完工，本專案沿用其做法與工具骨架。
 
+## 下載與遊玩
+
+到 [Releases](https://github.com/tzengyuxio/genpei-zh/releases) 下載修補程式（Windows／macOS）。修補程式只含譯文，需要自備 DOS/V 原版遊戲檔（安裝後的 `GENPEI` 資料夾）；執行後會在旁邊建立中文版的 `GENPEIZH` 資料夾，不動原檔。用 DOSBox-X 的 DOS/V 模式遊玩，壓縮檔附設定檔與說明（`README.txt`）。
+
+修補程式在 `patcher/`（Go，移植自 kami-zh），以 `tools/release.sh VERSION` 建置：重新建置譯文、用 `tools/mkpatch.py` 產生只含差異的 `genpei-zh.kzp` 內嵌進去，輸出到 `patcher/dist/`。
+
 ## 本 repo 不包含遊戲檔案
 
 遊戲 binary 與素材皆未納入版控（版權因素，`.gitignore` 已排除 `game/`）。請自備遊戲、解壓到 `game/GENPEI/`：
