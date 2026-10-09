@@ -60,13 +60,18 @@ created: 2026-10-07
 
 ## 步驟
 
-1. **源平版改架構**（在 `koei-kao` 進行）：定義資料格式（寫成文件）→ `mob_kao_explorer.py` 只輸出資料 → 頁面拆成共用渲染器＋UI＋源平外掛 → 加 deflate → 重跑 310 人逐 pixel 比對（與 `build/dump/portraits/generals/`），量測縮小幅度。
+1. **源平版改架構**（在網站 repo `kaodata` 進行）：定義資料格式（寫成文件）→ `mob_kao_explorer.py` 只輸出資料 → 頁面拆成共用渲染器＋UI＋源平外掛 → 加 deflate → 重跑 310 人逐 pixel 比對（與 `build/dump/portraits/generals/`），量測縮小幅度。
 2. **接上 FC 三國志當第二個遊戲**，驗證介面切得對不對；介面在這一步之後才定案。
 
 ## 決議：獨立 repo、擴大成臉譜工具（2026-10-09）
 
-- **獨立 repo `koei-kao`**（放 Forgejo），一開始就獨立，不先放在本 repo 再搬。
-  各遊戲 repo 只負責產生資料 JSON（Python 轉換器留在各遊戲 repo，因為它需要原版遊戲檔）。
+- **獨立 repo**（放 Forgejo），一開始就獨立，不先放在本 repo 再搬。
+- **用途拆成兩個 repo**（2026-10-09 再議定）：
+  - **`kaodata-re`**：格式研究＋解碼程式。由 GitHub `kaodata` 改名而來，`dekoei` 併回。留在 GitHub（公開），可以雜亂、有臨時資料，但不放遊戲原檔。
+    解碼 library 的獨立價值已不大（genpei-zh 就沒有引用 `dekoei/genpei.py`，而是另寫了一份），
+    留著是當作可執行的格式說明，並負責輸出網站資料。
+  - **`kaodata`**（新建，網站 `kaodata.simagame.me`）：臉譜網站，保持乾淨、可自動部署。統一資料格式的規格放這裡，提供資料的一方配合。
+  - 網站資料來源：`kaodata-re` 的輸出、fc-sangokushi（FC 版自己輸出）、`koei-images` 的 PNG。源平合戰的資料之後改由 `kaodata-re` 輸出。
 - **範圍擴大**：不只大眾臉，還有光榮武將臉譜的查看、編輯等工具。repo 與網站名稱不綁「大眾臉」，
   大眾臉探索器是其中一個工具。資料格式因此要同時容納組合零件與逐人完整頭像（上面的 `portraits`）。
 - **不和網頁版遊玩合併**：遊玩網站只放譯文差異、原版檔玩家自備；這裡的資料是解出來的原作美術，版權性質不同，
@@ -77,13 +82,13 @@ created: 2026-10-07
 
 ## 既有資產與從頭規劃（2026-10-09）
 
-`koei-kao` **從頭寫、重新做整體規劃**，不直接接手舊程式；連同本 repo 與 fc-sangokushi 的兩個大眾臉探索器、
+網站 `kaodata` **從頭寫、重新做整體規劃**，不直接接手舊程式；連同本 repo 與 fc-sangokushi 的兩個大眾臉探索器、
 2023 年的顏 CG 編輯器，都只當參考。上面的資料格式、分層與步驟是規劃的起點，不是定案。可參考的既有資產：
 
 | 位置 | 內容 |
 |---|---|
-| GitHub `tzengyuxio/kaodata`（2023） | 早期光榮遊戲資料研究；`kaocgeditor/` 是顏 CG 編輯器原始碼（React／Create React App，讀使用者的原版頭像檔：水滸傳、三國志 II～V、項劉記、拿破崙，三國志 III 與項劉記可編輯存檔），部署成品在 metacontext `static/kaocgeditor/`；`montage/` 是早期的大眾臉網頁 |
-| GitHub `tzengyuxio/dekoei`（2023） | 從 kaodata 拆出的 Python 解碼：三國志 I～III、信長、源平（`genpei.py`）、LS11 等 |
+| GitHub `tzengyuxio/kaodata-re`（2023，原名 `kaodata`，2026-10-09 改名） | 早期光榮遊戲資料研究；`kaocgeditor/` 是顏 CG 編輯器原始碼（React／Create React App，讀使用者的原版頭像檔：水滸傳、三國志 II～V、項劉記、拿破崙，三國志 III 與項劉記可編輯存檔），部署成品在 metacontext `static/kaocgeditor/`；`montage/` 是早期的大眾臉網頁 |
+| GitHub `tzengyuxio/dekoei`（2023，將併回 `kaodata-re`） | 從 kaodata 拆出的 Python 解碼：三國志 I～III、信長、源平（`genpei.py`）、LS11 等 |
 | Forgejo `koei-images` | 已擷取的圖片（純存放，約 5.3 GB），可當逐 pixel 比對的標準答案，或直接轉成查看器的資料 |
 | 本 repo `tools/mob_kao_explorer.py`、fc-sangokushi | 兩個現行的大眾臉探索器 |
 
